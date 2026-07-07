@@ -115,6 +115,81 @@ def write_media_single(ws, brand, title, media_disp, camp_disp, df_f, y, mth):
         ws.column_dimensions[ws.cell(row=1, column=c).column_letter].width = 12
 
 
+def write_media_multi(ws, brand, title, media_disp, group_col, df_f, y, mth):
+    """다중유형 리포트: ■누적요약(유형별) → ■주간현황 → ■전체 일별 성과."""
+    daily = daily_frame(df_f, y, mth)
+    total = _metrics(df_f)
+    periods = week_periods(daily)
+
+    _put(ws, 2, 2, title, font=F_TITLE)
+    _put(ws, 3, 2, "브랜드"); _put(ws, 3, 3, BRAND_LOWER[brand])
+    _put(ws, 4, 2, "매체"); _put(ws, 4, 3, media_disp)
+    r = 6
+
+    # ■ 누적 요약 (유형별)
+    _put(ws, r, 2, "■ 누적 요약 (유형별)", font=F_SEC, fill=FILL_SEC); r += 1
+    hdr_label = "광고유형" if group_col == "캠페인" else "광고그룹"
+    _put(ws, r, 2, hdr_label, font=F_COL, fill=FILL_COL, align=CENTER)
+    _put(ws, r, 3, "캠페인", font=F_COL, fill=FILL_COL, align=CENTER)
+    for i, (label, _, _) in enumerate(MEDIA_COLS):
+        _put(ws, r, 4 + i, label, font=F_COL, fill=FILL_COL, align=CENTER)
+    r += 1
+    # 유형별 집계 (광고비 내림차순)
+    grp = []
+    for gval, sub in df_f.groupby(group_col):
+        grp.append((str(gval), sub))
+    grp.sort(key=lambda x: -x[1]["광고비용"].sum())
+    for gval, sub in grp:
+        m = _metrics(sub)
+        camp = sub["캠페인"].iloc[0] if len(sub) else ""
+        _put(ws, r, 2, gval[:24], align=LEFT)
+        _put(ws, r, 3, camp[:22], align=LEFT)
+        _metric_row(ws, r, m); r += 1
+    _put(ws, r, 2, "TOTAL", font=F_SUM, fill=FILL_SUM)
+    _metric_row(ws, r, total); r += 2
+
+    # ■ 주간현황
+    _put(ws, r, 2, "■ 주간현황", font=F_SEC, fill=FILL_SEC); r += 1
+    _hdr(ws, r, "주차", "기간"); r += 1
+    for wk in range(1, 6):
+        sub = daily[daily["주차"] == wk]
+        m = _metrics_from_sums(sub["노출수"].sum(), sub["클릭수"].sum(), sub["집행예산"].sum(),
+                               sub["전환수"].sum(), sub["매출"].sum(), sub["회원가입"].sum(),
+                               sub["세션수"].sum())
+        _put(ws, r, 2, f"{wk}주차", align=CENTER)
+        _put(ws, r, 3, periods[wk], align=CENTER)
+        _metric_row(ws, r, m); r += 1
+    _put(ws, r, 2, "합계", font=F_SUM, fill=FILL_SUM)
+    _metric_row(ws, r, total); r += 2
+
+    # ■ 전체 일별 성과
+    _put(ws, r, 2, "■ 전체 일별 성과", font=F_SEC, fill=FILL_SEC); r += 1
+    _hdr(ws, r, "요일", "날짜"); r += 1
+    for _, d in daily.iterrows():
+        col = SAT_COLOR if d["wd"] == 5 else SUN_COLOR if d["wd"] == 6 else None
+        _put(ws, r, 2, d["요일"], align=CENTER, color=col)
+        _put(ws, r, 3, d["날짜"], "yyyy-mm-dd", align=CENTER, color=col)
+        _metric_row(ws, r, d); r += 1
+    _put(ws, r, 2, "합계", font=F_SUM, fill=FILL_SUM)
+    _metric_row(ws, r, total)
+
+    ws.column_dimensions["A"].width = 2
+    ws.column_dimensions["B"].width = 14
+    ws.column_dimensions["C"].width = 18
+    for c in range(4, 4 + len(MEDIA_COLS)):
+        ws.column_dimensions[ws.cell(row=1, column=c).column_letter].width = 12
+
+
+# 다중유형 시트: (접미사, 제목, 매체표시, 매체, 패턴, 그룹컬럼, 대상브랜드)
+MULTI_SHEETS = [
+    ("크리테오", "{T} 크리테오 리포트", "criteo", "Criteo", "", "캠페인", ["MI", "IT", "EBM"]),
+    ("K디스", "{T} 카카오 디스플레이 리포트", "kakao", "KKO", "", "캠페인", ["MI", "IT", "EBM"]),
+    ("메타_성과형", "{T} 메타 성과형(pf) 리포트", "meta", "Meta", "pf", "광고그룹", ["MI", "IT", "EBM"]),
+    ("메타_브랜딩형", "{T} 메타 브랜딩형(br) 리포트", "meta", "Meta", "br", "광고그룹", ["MI", "IT", "EBM"]),
+    ("N디스", "{T} 네이버 디스플레이 리포트", "naver", "Naver", "", "캠페인", ["IT"]),
+]
+
+
 # 단일캠페인형 시트 정의: (접미사, 제목템플릿, 매체표시, 캠페인표시템플릿, 매체, 패턴, 대상브랜드)
 SINGLE_SHEETS = [
     ("구글SA", "{T} 구글 SA 리포트", "google", "GGL_{B}_SA_pf_cpc", "Google", "cpc", ["MI", "IT", "EBM"]),
@@ -128,9 +203,13 @@ def add_media_sheets(book, uni, y, mth):
         for b in brands:
             df_f = _filter(uni, b, media, pat)
             ws = book.create_sheet(f"{b}_{suffix}")
-            title = title_t.format(T=BRAND_TITLE[b])
-            camp = camp_t.format(B=b)
-            write_media_single(ws, b, title, mdisp, camp, df_f, y, mth)
+            write_media_single(ws, b, title_t.format(T=BRAND_TITLE[b]), mdisp,
+                               camp_t.format(B=b), df_f, y, mth)
+    for suffix, title_t, mdisp, media, pat, gcol, brands in MULTI_SHEETS:
+        for b in brands:
+            df_f = _filter(uni, b, media, pat)
+            ws = book.create_sheet(f"{b}_{suffix}")
+            write_media_multi(ws, b, title_t.format(T=BRAND_TITLE[b]), mdisp, gcol, df_f, y, mth)
 
 
 if __name__ == "__main__":
