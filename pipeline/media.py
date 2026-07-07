@@ -128,7 +128,7 @@ def write_media_multi(ws, brand, title, media_disp, group_col, df_f, y, mth):
 
     # ■ 누적 요약 (유형별)
     _put(ws, r, 2, "■ 누적 요약 (유형별)", font=F_SEC, fill=FILL_SEC); r += 1
-    hdr_label = "광고유형" if group_col == "캠페인" else "광고그룹"
+    hdr_label = {"캠페인": "광고유형", "광고그룹": "광고그룹", "상품유형": "상품"}.get(group_col, "구분")
     _put(ws, r, 2, hdr_label, font=F_COL, fill=FILL_COL, align=CENTER)
     _put(ws, r, 3, "캠페인", font=F_COL, fill=FILL_COL, align=CENTER)
     for i, (label, _, _) in enumerate(MEDIA_COLS):
@@ -210,6 +210,24 @@ def add_media_sheets(book, uni, y, mth):
             df_f = _filter(uni, b, media, pat)
             ws = book.create_sheet(f"{b}_{suffix}")
             write_media_multi(ws, b, title_t.format(T=BRAND_TITLE[b]), mdisp, gcol, df_f, y, mth)
+    # N검색 (Naver SA, 상품유형별) — 세로형식
+    for b in ["MI", "IT", "EBM"]:
+        df_f = _filter(uni, b, "Naver SA", "").copy()
+        df_f["상품유형"] = df_f["캠페인"].map(nsearch_type)
+        ws = book.create_sheet(f"{b}_N검색")
+        write_media_multi(ws, b, f"{BRAND_TITLE[b]} N검색 리포트", "naver", "상품유형", df_f, y, mth)
+
+
+NSEARCH_TYPES = [("브랜드검색", "bsa"), ("파워링크", "cpc"),
+                 ("쇼핑검색", "shopping"), ("엠버서더", "Ambassador"), ("플레이스", "place")]
+
+
+def nsearch_type(camp):
+    c = str(camp).lower()
+    for label, pat in NSEARCH_TYPES:
+        if pat.lower() in c:
+            return label
+    return "기타"
 
 
 if __name__ == "__main__":
