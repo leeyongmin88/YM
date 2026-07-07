@@ -235,8 +235,9 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
         _put(ws, r, 4 + i, total[k], CUM_FMT[i], font=F_SUM, fill=FILL_SUM)
     r += 3
 
-    # ── 3. 구분별 (디바이스별) ──
-    _put(ws, r, 2, "[구분별 요약]", font=F_SEC, fill=FILL_SEC)
+    # ── 3. 디바이스 별 (구분 롤업) ──
+    _put(ws, r, 2, "[디바이스 별]", font=F_SEC, fill=FILL_SEC)
+    _put(ws, r, 8, "어드민 전환")
     r += 1
     _put(ws, r, 2, "구분", font=F_COL, fill=FILL_COL, align=CENTER)
     for i, h in enumerate(CUM_KEYS):
@@ -249,24 +250,33 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
         r += 1
     r += 2
 
-    # ── 4. 요일별 평균 ──
-    _put(ws, r, 2, "[요일별 평균]", font=F_SEC, fill=FILL_SEC)
+    # ── 4. 요일별 평균 (구분: 주중/주말) ──
+    _put(ws, r, 2, "[요일별 평균] 통계 기간내", font=F_SEC, fill=FILL_SEC)
+    r += 1
+    _put(ws, r, 2, "구분", font=F_COL, fill=FILL_COL, align=CENTER)
+    _put(ws, r, 3, "요일", font=F_COL, fill=FILL_COL, align=CENTER)
+    _put(ws, r, 4, "Pre Click", font=F_COL, fill=FILL_COL, align=CENTER)
+    _put(ws, r, 9, "Post Click - 매출", font=F_COL, fill=FILL_COL, align=CENTER)
     r += 1
     wa_hdr = ["평균 노출수", "평균 클릭수", "클릭율", "클릭비용", "평균광고비",
               "평균 전환수", "전환비용", "평균 매출", "ROAS", "객단가"]
     wa_key = ["노출", "클릭", "클릭율", "클릭비용", "광고비", "전환", "전환비용", "매출", "ROAS", "객단가"]
     wa_fmt = ["#,##0", "#,##0", "0.00%", "#,##0", "#,##0", "#,##0.0", "#,##0", "#,##0", "#,##0.00", "#,##0"]
-    _put(ws, r, 2, "요일", font=F_COL, fill=FILL_COL, align=CENTER)
+    _put(ws, r, 3, "요일", font=F_COL, fill=FILL_COL, align=CENTER)
     for i, h in enumerate(wa_hdr):
         _put(ws, r, 4 + i, h, font=F_COL, fill=FILL_COL, align=CENTER)
     r += 1
     wrows, wmid, wend, wall = weekday_avg(daily, y, mth)
-    for wr in wrows:
-        col = SAT_COLOR if wr["wd"] == 5 else SUN_COLOR if wr["wd"] == 6 else None
-        _put(ws, r, 2, wr["요일"], align=CENTER, color=col)
-        for i, k in enumerate(wa_key):
-            _put(ws, r, 4 + i, wr[k], wa_fmt[i])
-        r += 1
+    groups = [("주중", wrows[0:5]), ("주말", wrows[5:7])]
+    for gname, grp in groups:
+        for idx, wr in enumerate(grp):
+            col = SAT_COLOR if wr["wd"] == 5 else SUN_COLOR if wr["wd"] == 6 else None
+            if idx == 0:
+                _put(ws, r, 2, gname, align=CENTER)
+            _put(ws, r, 3, wr["요일"], align=CENTER, color=col)
+            for i, k in enumerate(wa_key):
+                _put(ws, r, 4 + i, wr[k], wa_fmt[i])
+            r += 1
     for nm, mm in [("주중 평균", wmid), ("주말 평균", wend), ("일 평균", wall)]:
         _put(ws, r, 2, nm, font=F_SUM, fill=FILL_SUM)
         for i, k in enumerate(wa_key):
@@ -274,33 +284,53 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
         r += 1
     r += 2
 
-    # ── 5. 주간 ──
+    # ── 5. 주간 (주차번호 A열, CAC, 전주대비증감율) ──
     _put(ws, r, 2, "[주간]", font=F_SEC, fill=FILL_SEC)
     r += 1
+    wk_hdr = ["노출수", "클릭수", "클릭률", "클릭당비용", "광고비", "전환수", "매출",
+              "회원가입", "전환율", "전환당비용", "회원가입율", "ROAS", "객단가"]
     _put(ws, r, 2, "주간", font=F_COL, fill=FILL_COL, align=CENTER)
-    for i, h in enumerate(CUM_KEYS):
+    for i, h in enumerate(wk_hdr):
         _put(ws, r, 4 + i, h, font=F_COL, fill=FILL_COL, align=CENTER)
+    _put(ws, r, 4 + len(wk_hdr), "CAC", font=F_COL, fill=FILL_COL, align=CENTER)
     r += 1
+    wk_metrics = []
     for wk in range(1, 6):
         sub = daily[daily["주차"] == wk]
         m = _metrics_from_sums(sub["노출수"].sum(), sub["클릭수"].sum(), sub["집행예산"].sum(),
                                sub["전환수"].sum(), sub["매출"].sum(), sub["회원가입"].sum())
+        wk_metrics.append(m)
+        _put(ws, r, 1, wk, align=CENTER)                      # A열 주차번호
         _put(ws, r, 2, f"{mth}월 {wk}주", align=CENTER)
         for i, k in enumerate(CUM_KEYS):
             _put(ws, r, 4 + i, m[k], CUM_FMT[i])
+        _put(ws, r, 4 + len(CUM_KEYS), _div(m["집행예산"], m["회원가입"]), "#,##0")  # CAC
         r += 1
-    r += 2
+    # 전주 대비 증감율: 데이터 있는 마지막 두 주 비교
+    active = [i for i, m in enumerate(wk_metrics) if m["집행예산"] > 0]
+    _put(ws, r, 2, "전주 대비 증감율", font=F_SUM, fill=FILL_SUM)
+    if len(active) >= 2:
+        cur, prev = wk_metrics[active[-1]], wk_metrics[active[-2]]
+        for i, k in enumerate(CUM_KEYS):
+            v = _div(cur[k] - prev[k], prev[k]) if prev[k] else -1
+            _put(ws, r, 4 + i, v, "0.00%", font=F_SUM, fill=FILL_SUM)
+    else:
+        for i in range(len(CUM_KEYS)):
+            _put(ws, r, 4 + i, -1, "0.00%", font=F_SUM, fill=FILL_SUM)
+    r += 3
 
-    # ── 6. 일자별 성과 (1일~월말, 주말색) ──
+    # ── 6. 일자별 성과 (주차번호 A열, 1일~월말, 주말색) ──
     _put(ws, r, 2, "[일자별 성과]", font=F_SEC, fill=FILL_SEC)
+    _put(ws, r, 8, "어드민 전환")
     r += 1
     _put(ws, r, 2, "요일", font=F_COL, fill=FILL_COL, align=CENTER)
     _put(ws, r, 3, "날짜", font=F_COL, fill=FILL_COL, align=CENTER)
-    for i, h in enumerate(CUM_KEYS):
+    for i, h in enumerate(wk_hdr):
         _put(ws, r, 4 + i, h, font=F_COL, fill=FILL_COL, align=CENTER)
     r += 1
     for _, d in daily.iterrows():
         col = SAT_COLOR if d["wd"] == 5 else SUN_COLOR if d["wd"] == 6 else None
+        _put(ws, r, 1, int(d["주차"]), align=CENTER)           # A열 주차번호
         _put(ws, r, 2, d["요일"], align=CENTER, color=col)
         _put(ws, r, 3, d["날짜"], "yyyy-mm-dd", align=CENTER, color=col)
         for i, k in enumerate(CUM_KEYS):
