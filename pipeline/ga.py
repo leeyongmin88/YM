@@ -10,7 +10,7 @@ GA 원본 4파일:
 """
 import re
 import pandas as pd
-from config import RAW_DIR, KKO_CATALOG
+from config import RAW_DIR, KKO_CATALOG, BRANDS
 from ingest import to_num, norm_id, _code
 
 GA_DIR = RAW_DIR / "GA"
@@ -59,14 +59,48 @@ def ga_key(plat, camp, content, camp_id):
     return ""
 
 
+SA_DEVICE = {"mobile": "mo", "tablet": "mo", "desktop": "pc"}
+
+
+def sa_campaign(sess_camp, device):
+    """Naver SA GA행(세션캠페인+기기) → NSA 캠페인명 매칭키.
+    예: it_brandsearch + mobile → NAV_IT_SA_pf_bsa_mo_new"""
+    sc = str(sess_camp).strip().lower()
+    brand = sc.split("_")[0].upper()
+    if brand not in BRANDS:
+        return ""                                   # ss_* 등 → 대상외
+    dev = SA_DEVICE.get(str(device).strip().lower(), "mo")
+    if "ambassador" in sc:
+        return "NAV_%s_SA_pf_Ambassador" % brand
+    if "brandsearch" in sc:
+        return "NAV_%s_SA_pf_bsa_%s_new" % (brand, dev)
+    if "paidsearch" in sc:
+        return "NAV_%s_SA_pf_cpc_%s" % (brand, dev)
+    if "shopping" in sc:
+        return "NAV_%s_SA_pf_shopping_%s" % (brand, dev)
+    return ""
+
+
 def build_ga_sales():
-    """(매칭키, 날짜키) → [구매, 구매수익, 세션]"""
+    """(매칭키, 날짜키) → [구매, 구매수익, 세션]. DA/검색 + Naver SA 통합."""
+    agg = {}
+    # (1) DA·검색 광고매출
     df = _read_ga("광고매출.csv")
     df = df[df["세션 소스/매체"].str.strip() != ""]
-    agg = {}
     for _, r in df.iterrows():
         plat = platform_of(r["세션 소스/매체"])
         key = ga_key(plat, r["세션 캠페인"], r["세션 수동 광고 콘텐츠"], r["세션 캠페인 ID"])
+        if not key:
+            continue
+        dk = str(r["날짜"]).strip()
+        a = agg.setdefault((key, dk), [0.0, 0.0, 0.0])
+        a[0] += to_num(r["구매"]); a[1] += to_num(r["구매 수익"]); a[2] += to_num(r["세션수"])
+    # (2) Naver SA 매출
+    sa = _read_ga("네이버SA매출.csv")
+    sa = sa[sa["세션 소스/매체"].str.strip() != ""]
+    dev_col = sa.columns[3]                          # 기기 카테고리
+    for _, r in sa.iterrows():
+        key = sa_campaign(r["세션 캠페인"], r[dev_col])
         if not key:
             continue
         dk = str(r["날짜"]).strip()
@@ -76,10 +110,11 @@ def build_ga_sales():
 
 
 def build_ga_signup():
-    """(매칭키, 날짜키) → [회원가입수(이벤트수), 회원가입세션]"""
+    """(매칭키, 날짜키) → [회원가입수, 회원가입세션]. DA/검색 + Naver SA."""
+    agg = {}
+    # (1) DA·검색 회원가입: 회원가입수=이벤트수, 세션=세션수
     df = _read_ga("광고가입.csv")
     df = df[df["세션 소스/매체"].str.strip() != ""]
-    agg = {}
     for _, r in df.iterrows():
         plat = platform_of(r["세션 소스/매체"])
         key = ga_key(plat, r["세션 캠페인"], r["세션 수동 광고 콘텐츠"], r["세션 캠페인 ID"])
@@ -88,6 +123,18 @@ def build_ga_signup():
         dk = str(r["날짜"]).strip()
         a = agg.setdefault((key, dk), [0.0, 0.0])
         a[0] += to_num(r["이벤트 수"]); a[1] += to_num(r["세션수"])
+    # (2) Naver SA 회원가입 (세션수만 존재 → 가입수=세션=세션수)
+    sa = _read_ga("네이버SA가입.csv")
+    sa = sa[sa["세션 소스/매체"].str.strip() != ""]
+    dev_col = sa.columns[3]
+    for _, r in sa.iterrows():
+        key = sa_campaign(r["세션 캠페인"], r[dev_col])
+        if not key:
+            continue
+        dk = str(r["날짜"]).strip()
+        n = to_num(r["세션수"])
+        a = agg.setdefault((key, dk), [0.0, 0.0])
+        a[0] += n; a[1] += n
     return agg
 
 

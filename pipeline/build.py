@@ -1,0 +1,57 @@
+# -*- coding: utf-8 -*-
+"""오케스트레이터: RAW → 통합 시트 생성 → 엑셀 저장.
+
+실행:  python build.py
+출력:  YM/output/통합_리포트.xlsx  (통합 시트)
+"""
+import warnings
+warnings.simplefilter("ignore")
+import pandas as pd
+from config import OUT_DIR
+from ingest import combine_ads
+from ga import join_ga
+
+# 통합 시트 컬럼 순서 (완성본과 동일, 17열)
+UNIFIED_ORDER = [
+    "날짜", "날짜키", "매체", "브랜드", "캠페인", "광고그룹", "광고(소재)",
+    "광고비용", "노출수", "클릭수", "GA구매", "GA구매수익", "GA세션",
+    "매핑상태", "매칭키", "회원가입수", "회원가입세션",
+]
+
+
+def build_unified():
+    """통합 DataFrame (17열, 정렬 완료) 반환."""
+    df = join_ga(combine_ads())
+    df = df[UNIFIED_ORDER].copy()
+    df = df.sort_values(["매체", "브랜드", "캠페인", "광고그룹", "광고(소재)", "날짜"]).reset_index(drop=True)
+    return df
+
+
+def save_excel(df, path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with pd.ExcelWriter(path, engine="openpyxl", datetime_format="yyyy-mm-dd") as xw:
+        df.to_excel(xw, sheet_name="통합", index=False)
+        ws = xw.sheets["통합"]
+        # 컬럼 폭 자동
+        for i, col in enumerate(df.columns, start=1):
+            width = max(len(str(col)), 12) + 2
+            ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = width
+    return path
+
+
+def main():
+    df = build_unified()
+    out = OUT_DIR / "통합_리포트.xlsx"
+    save_excel(df, out)
+    # 요약
+    print("통합 시트 생성 완료:", out)
+    print("  총 행수:", len(df))
+    g = df.groupby("매체")[["광고비용", "GA구매", "GA구매수익"]].sum()
+    print(g.to_string())
+    print("  광고비 합계: {:,.0f}".format(df["광고비용"].sum()))
+    print("  GA매출 합계: {:,.0f}".format(df["GA구매수익"].sum()))
+    print("  매핑상태:", dict(df["매핑상태"].value_counts()))
+
+
+if __name__ == "__main__":
+    main()
