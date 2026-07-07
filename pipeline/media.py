@@ -343,10 +343,10 @@ def write_nsearch(ws, brand, df_f, y, mth):
             _put(ws, 16 + wk, c0, f"{mth}월 {wk}주", align=CENTER)
             _ns_row(ws, 16 + wk, c0 + 1, m)
 
-    # 3·4. [일자별 성과 · PC/MO] (가로 블록)
-    def daily_section(r0, device):
+    # 3·4. [일자별 성과 · PC/MO] (가로 블록). 엠버서더는 모바일 전용 → MO에만.
+    def daily_section(r0, device, products):
         _put(ws, r0, 2, f"[일자별 성과 · {device}]", font=F_SEC, fill=FILL_SEC)
-        for p, (label, pat) in enumerate(NS_PRODUCTS):
+        for p, (label, pat) in enumerate(products):
             c0 = 2 + p * BLOCK_W
             dlabel = label if label == "엠버서더" else f"{label} {device}"
             _put(ws, r0 + 1, c0, dlabel, font=F_COL, fill=FILL_COL, align=CENTER)
@@ -363,8 +363,9 @@ def write_nsearch(ws, brand, df_f, y, mth):
                 _put(ws, r, c0 + 1, d["날짜"], "yyyy-mm-dd", align=CENTER, color=col)
                 for i, k in enumerate(NS_KEYS):
                     _put(ws, r, c0 + 2 + i, d.get(k, 0), NS_FMT[i])
-    daily_section(23, "PC")
-    daily_section(58, "MO")
+    pc_products = [x for x in NS_PRODUCTS if x[0] != "엠버서더"]   # 엠버서더 모바일전용
+    daily_section(23, "PC", pc_products)
+    daily_section(58, "MO", NS_PRODUCTS)
 
     ws.column_dimensions["A"].width = 2
     for p in range(len(NS_PRODUCTS)):
