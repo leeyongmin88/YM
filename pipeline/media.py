@@ -176,9 +176,11 @@ def write_media_multi(ws, brand, title, media_disp, group_col, df_f, y, mth,
     _put(ws, r, 2, "합계", font=F_SUM, fill=FILL_SUM)
     _metric_row(ws, r, total); r += 1
 
-    # ■ 유형별 일자별 (per_group_daily): 캠페인/유형마다 일자별 블록
+    # ■ 유형별 일자별 (per_group_daily): 캠페인/유형마다 일자별 블록 (기타 제외)
     if per_group_daily:
         for gval, sub in grp:
+            if gval == "기타":
+                continue
             r += 2
             camp = sub["캠페인"].iloc[0] if len(sub) else ""
             _put(ws, r, 2, f"■ {gval} 일자별", font=F_SEC, fill=FILL_SEC)
@@ -203,7 +205,6 @@ def write_media_multi(ws, brand, title, media_disp, group_col, df_f, y, mth,
 
 # 다중유형 시트(광고그룹별, 유형별일자별 포함): (접미사, 제목, 매체표시, 매체, 패턴, 그룹컬럼, 대상브랜드)
 MULTI_SHEETS = [
-    ("메타_성과형", "{T} 메타 성과형(pf) 리포트", "meta", "Meta", "pf", "광고그룹", ["MI", "IT", "EBM"]),
     ("메타_브랜딩형", "{T} 메타 브랜딩형(br) 리포트", "meta", "Meta", "br", "광고그룹", ["MI", "IT", "EBM"]),
 ]
 
@@ -243,6 +244,13 @@ def add_media_sheets(book, uni, y, mth):
             ws = book.create_sheet(f"{b}_{suffix}")
             write_media_multi(ws, b, title_t.format(T=BRAND_TITLE[b]), mdisp, "유형",
                               df_f, y, mth, per_group_daily=True)
+    # 메타 성과형 (광고그룹×catalog소재/나머지 세분)
+    for b in ["MI", "IT", "EBM"]:
+        df_f = _filter(uni, b, "Meta", "pf").copy()
+        df_f["유형"] = df_f.apply(lambda r: meta_perf_label(r["광고그룹"], r["광고(소재)"]), axis=1)
+        ws = book.create_sheet(f"{b}_메타_성과형")
+        write_media_multi(ws, b, f"{BRAND_TITLE[b]} 메타 성과형(pf) 리포트", "meta", "유형",
+                          df_f, y, mth, per_group_daily=True)
 
 
 def criteo_type(camp):
@@ -269,6 +277,24 @@ def naver_type(camp):
     if "advoost" in c:
         return "애드부스트"
     return "기타"
+
+
+def _short_adgroup(adgroup):
+    """MI_NEW_ASC(outlet) → ASC(outlet), MI_RE_DYNAMIC_260112 → DYNAMIC_260112"""
+    parts = str(adgroup).split("_")
+    if len(parts) >= 3 and parts[1] in ("NEW", "RE"):
+        return "_".join(parts[2:])
+    return str(adgroup)
+
+
+def meta_perf_label(adgroup, creative):
+    """메타 성과형: 광고그룹을 catalog소재 / 나머지로 세분."""
+    short = _short_adgroup(adgroup)
+    if "catalog" in str(creative).lower():
+        import re as _re
+        m = _re.search(r"MT\d+", str(creative))
+        return f"{short}·catalog소재({m.group(0) if m else ''})"
+    return f"{short}·나머지"
 
 
 NSEARCH_TYPES = [("브랜드검색", "bsa"), ("파워링크", "cpc"),
