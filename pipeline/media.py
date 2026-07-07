@@ -235,7 +235,6 @@ def add_media_sheets(book, uni, y, mth):
         ("크리테오", "{T} 크리테오 리포트", "criteo", "Criteo", criteo_type, ["MI", "IT", "EBM"]),
         ("K디스", "{T} 카카오 디스플레이 리포트", "kakao", "KKO", kko_type, ["MI", "IT", "EBM"]),
         ("N디스", "{T} 네이버 디스플레이 리포트", "naver", "Naver", naver_type, ["IT"]),
-        ("N검색", "{T} N검색 리포트", "naver", "Naver SA", nsearch_type, ["MI", "IT", "EBM"]),
     ]
     for suffix, title_t, mdisp, media, tfn, brands in typed:
         for b in brands:
@@ -251,6 +250,11 @@ def add_media_sheets(book, uni, y, mth):
         ws = book.create_sheet(f"{b}_메타_성과형")
         write_media_multi(ws, b, f"{BRAND_TITLE[b]} 메타 성과형(pf) 리포트", "meta", "유형",
                           df_f, y, mth, per_group_daily=True)
+    # N검색 (가로 다중블록 + PC/MO)
+    for b in ["MI", "IT", "EBM"]:
+        df_f = _filter(uni, b, "Naver SA", "")
+        ws = book.create_sheet(f"{b}_N검색")
+        write_nsearch(ws, b, df_f, y, mth)
 
 
 def criteo_type(camp):
@@ -277,6 +281,96 @@ def naver_type(camp):
     if "advoost" in c:
         return "애드부스트"
     return "기타"
+
+
+# ── N검색 (가로 다중블록 + PC/MO) ──
+NS_KEYS = ["노출수", "클릭수", "클릭률", "클릭당비용", "집행예산", "전환수", "매출",
+           "회원가입", "전환율", "전환당비용", "회원가입율", "ROAS", "객단가"]
+NS_HDR = ["노출수", "클릭수", "클릭률", "클릭당비용", "광고비", "전환수", "매출",
+          "회원가입", "전환율", "전환당비용", "회원가입율", "ROAS", "객단가"]
+NS_FMT = ["#,##0", "#,##0", "0.00%", "#,##0", "#,##0", "#,##0", "#,##0",
+          "#,##0", "0.00%", "#,##0", "0.00%", "#,##0.00", "#,##0"]
+NS_PRODUCTS = [("전체", None), ("브랜드검색", "bsa"), ("파워링크", "cpc"),
+               ("쇼핑검색", "shopping"), ("엠버서더", "Ambassador")]
+BLOCK_W = 16   # 블록 폭 (14 사용 + 2 여백)
+
+
+def _ns_row(ws, r, c0, m, fmt_bold=False):
+    font = F_SUM if fmt_bold else None
+    fill = FILL_SUM if fmt_bold else None
+    for i, k in enumerate(NS_KEYS):
+        _put(ws, r, c0 + i, m.get(k, 0), NS_FMT[i], font=font, fill=fill)
+
+
+def write_nsearch(ws, brand, df_f, y, mth):
+    """N검색: 가로 다중블록(상품별) + PC/MO 일자별 + 상품별 주간현황."""
+    _put(ws, 2, 2, f"{BRAND_TITLE[brand]} N검색 TOTAL 리포트", font=F_TITLE)
+
+    def prod_df(pat, device=None):
+        d = df_f if pat is None else df_f[df_f["캠페인"].str.contains(pat, case=False, regex=False)]
+        if device == "PC":
+            d = d[d["캠페인"].str.contains("_pc", case=False, regex=False)]
+        elif device == "MO":
+            d = d[d["캠페인"].str.contains("_mo", case=False, regex=False)]
+        return d
+
+    # 1. [광고 유형 별 누적] (세로)
+    _put(ws, 5, 2, "[광고 유형 별 누적]", font=F_SEC, fill=FILL_SEC)
+    _put(ws, 6, 2, "상품", font=F_COL, fill=FILL_COL, align=CENTER)
+    for i, h in enumerate(NS_HDR):
+        _put(ws, 6, 4 + i, h, font=F_COL, fill=FILL_COL, align=CENTER)
+    rr = 7
+    for label, pat in NS_PRODUCTS[1:]:
+        _put(ws, rr, 2, label, align=LEFT)
+        _ns_row(ws, rr, 4, _metrics(prod_df(pat)))
+        rr += 1
+    _put(ws, rr, 2, "전체 합계", font=F_SUM, fill=FILL_SUM)
+    _ns_row(ws, rr, 4, _metrics(df_f), fmt_bold=True)
+
+    # 2. [상품별 주간 현황] (가로 블록)
+    _put(ws, 14, 2, "[상품별 주간 현황]", font=F_SEC, fill=FILL_SEC)
+    for p, (label, pat) in enumerate(NS_PRODUCTS):
+        c0 = 2 + p * BLOCK_W
+        _put(ws, 15, c0, label, font=F_COL, fill=FILL_COL, align=CENTER)
+        _put(ws, 16, c0, "주차", font=F_COL, fill=FILL_COL, align=CENTER)
+        for i, h in enumerate(NS_HDR):
+            _put(ws, 16, c0 + 1 + i, h, font=F_COL, fill=FILL_COL, align=CENTER)
+        pdaily = daily_frame(prod_df(pat), y, mth)
+        for wk in range(1, 6):
+            sub = pdaily[pdaily["주차"] == wk]
+            m = _metrics_from_sums(sub["노출수"].sum(), sub["클릭수"].sum(), sub["집행예산"].sum(),
+                                   sub["전환수"].sum(), sub["매출"].sum(), sub["회원가입"].sum())
+            _put(ws, 16 + wk, c0, f"{mth}월 {wk}주", align=CENTER)
+            _ns_row(ws, 16 + wk, c0 + 1, m)
+
+    # 3·4. [일자별 성과 · PC/MO] (가로 블록)
+    def daily_section(r0, device):
+        _put(ws, r0, 2, f"[일자별 성과 · {device}]", font=F_SEC, fill=FILL_SEC)
+        for p, (label, pat) in enumerate(NS_PRODUCTS):
+            c0 = 2 + p * BLOCK_W
+            dlabel = label if label == "엠버서더" else f"{label} {device}"
+            _put(ws, r0 + 1, c0, dlabel, font=F_COL, fill=FILL_COL, align=CENTER)
+            _put(ws, r0 + 2, c0, "요일", font=F_COL, fill=FILL_COL, align=CENTER)
+            _put(ws, r0 + 2, c0 + 1, "날짜", font=F_COL, fill=FILL_COL, align=CENTER)
+            for i, h in enumerate(NS_HDR):
+                _put(ws, r0 + 2, c0 + 2 + i, h, font=F_COL, fill=FILL_COL, align=CENTER)
+            dev = None if label == "엠버서더" else device   # 엠버서더는 기기구분 없음
+            pdaily = daily_frame(prod_df(pat, dev), y, mth)
+            for j, (_, d) in enumerate(pdaily.iterrows()):
+                r = r0 + 3 + j
+                col = SAT_COLOR if d["wd"] == 5 else SUN_COLOR if d["wd"] == 6 else None
+                _put(ws, r, c0, d["요일"], align=CENTER, color=col)
+                _put(ws, r, c0 + 1, d["날짜"], "yyyy-mm-dd", align=CENTER, color=col)
+                for i, k in enumerate(NS_KEYS):
+                    _put(ws, r, c0 + 2 + i, d.get(k, 0), NS_FMT[i])
+    daily_section(23, "PC")
+    daily_section(58, "MO")
+
+    ws.column_dimensions["A"].width = 2
+    for p in range(len(NS_PRODUCTS)):
+        c0 = 2 + p * BLOCK_W
+        ws.column_dimensions[ws.cell(row=1, column=c0).column_letter].width = 10
+        ws.column_dimensions[ws.cell(row=1, column=c0 + 1).column_letter].width = 11
 
 
 def _short_adgroup(adgroup):
