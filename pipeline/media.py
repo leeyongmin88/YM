@@ -115,8 +115,10 @@ def write_media_single(ws, brand, title, media_disp, camp_disp, df_f, y, mth):
         ws.column_dimensions[ws.cell(row=1, column=c).column_letter].width = 12
 
 
-def write_media_multi(ws, brand, title, media_disp, group_col, df_f, y, mth):
-    """다중유형 리포트: ■누적요약(유형별) → ■주간현황 → ■전체 일별 성과."""
+def write_media_multi(ws, brand, title, media_disp, group_col, df_f, y, mth,
+                      per_group_daily=False):
+    """다중유형 리포트: ■누적요약(유형별) → ■주간현황 → ■전체 일별 성과
+    (+ per_group_daily=True 이면 유형별 ■일자별 블록 추가)."""
     daily = daily_frame(df_f, y, mth)
     total = _metrics(df_f)
     periods = week_periods(daily)
@@ -128,7 +130,8 @@ def write_media_multi(ws, brand, title, media_disp, group_col, df_f, y, mth):
 
     # ■ 누적 요약 (유형별)
     _put(ws, r, 2, "■ 누적 요약 (유형별)", font=F_SEC, fill=FILL_SEC); r += 1
-    hdr_label = {"캠페인": "광고유형", "광고그룹": "광고그룹", "상품유형": "상품"}.get(group_col, "구분")
+    hdr_label = {"캠페인": "광고유형", "광고그룹": "광고그룹", "상품유형": "상품",
+                 "유형": "광고유형"}.get(group_col, "구분")
     _put(ws, r, 2, hdr_label, font=F_COL, fill=FILL_COL, align=CENTER)
     _put(ws, r, 3, "캠페인", font=F_COL, fill=FILL_COL, align=CENTER)
     for i, (label, _, _) in enumerate(MEDIA_COLS):
@@ -171,7 +174,25 @@ def write_media_multi(ws, brand, title, media_disp, group_col, df_f, y, mth):
         _put(ws, r, 3, d["날짜"], "yyyy-mm-dd", align=CENTER, color=col)
         _metric_row(ws, r, d); r += 1
     _put(ws, r, 2, "합계", font=F_SUM, fill=FILL_SUM)
-    _metric_row(ws, r, total)
+    _metric_row(ws, r, total); r += 1
+
+    # ■ 유형별 일자별 (per_group_daily): 캠페인/유형마다 일자별 블록
+    if per_group_daily:
+        for gval, sub in grp:
+            r += 2
+            camp = sub["캠페인"].iloc[0] if len(sub) else ""
+            _put(ws, r, 2, f"■ {gval} 일자별", font=F_SEC, fill=FILL_SEC)
+            _put(ws, r, 4, camp, align=LEFT)          # 캠페인명 기재
+            r += 1
+            _hdr(ws, r, "요일", "날짜"); r += 1
+            gdaily = daily_frame(sub, y, mth)
+            for _, d in gdaily.iterrows():
+                col = SAT_COLOR if d["wd"] == 5 else SUN_COLOR if d["wd"] == 6 else None
+                _put(ws, r, 2, d["요일"], align=CENTER, color=col)
+                _put(ws, r, 3, d["날짜"], "yyyy-mm-dd", align=CENTER, color=col)
+                _metric_row(ws, r, d); r += 1
+            _put(ws, r, 2, "합계", font=F_SUM, fill=FILL_SUM)
+            _metric_row(ws, r, _metrics(sub)); r += 1
 
     ws.column_dimensions["A"].width = 2
     ws.column_dimensions["B"].width = 14
@@ -182,7 +203,6 @@ def write_media_multi(ws, brand, title, media_disp, group_col, df_f, y, mth):
 
 # 다중유형 시트: (접미사, 제목, 매체표시, 매체, 패턴, 그룹컬럼, 대상브랜드)
 MULTI_SHEETS = [
-    ("크리테오", "{T} 크리테오 리포트", "criteo", "Criteo", "", "캠페인", ["MI", "IT", "EBM"]),
     ("K디스", "{T} 카카오 디스플레이 리포트", "kakao", "KKO", "", "캠페인", ["MI", "IT", "EBM"]),
     ("메타_성과형", "{T} 메타 성과형(pf) 리포트", "meta", "Meta", "pf", "광고그룹", ["MI", "IT", "EBM"]),
     ("메타_브랜딩형", "{T} 메타 브랜딩형(br) 리포트", "meta", "Meta", "br", "광고그룹", ["MI", "IT", "EBM"]),
@@ -210,12 +230,25 @@ def add_media_sheets(book, uni, y, mth):
             df_f = _filter(uni, b, media, pat)
             ws = book.create_sheet(f"{b}_{suffix}")
             write_media_multi(ws, b, title_t.format(T=BRAND_TITLE[b]), mdisp, gcol, df_f, y, mth)
+    # 크리테오 (유형별 LF/CCA/HYBRID) — 유형별 일자별 블록 포함
+    for b in ["MI", "IT", "EBM"]:
+        df_f = _filter(uni, b, "Criteo", "").copy()
+        df_f["유형"] = df_f["캠페인"].map(criteo_type)
+        ws = book.create_sheet(f"{b}_크리테오")
+        write_media_multi(ws, b, f"{BRAND_TITLE[b]} 크리테오 리포트", "criteo", "유형",
+                          df_f, y, mth, per_group_daily=True)
     # N검색 (Naver SA, 상품유형별) — 세로형식
     for b in ["MI", "IT", "EBM"]:
         df_f = _filter(uni, b, "Naver SA", "").copy()
         df_f["상품유형"] = df_f["캠페인"].map(nsearch_type)
         ws = book.create_sheet(f"{b}_N검색")
         write_media_multi(ws, b, f"{BRAND_TITLE[b]} N검색 리포트", "naver", "상품유형", df_f, y, mth)
+
+
+def criteo_type(camp):
+    """CRI_MI_DA_pf_LF → 'LF', CRI_EBM_DA_pf_HYBRID → 'HYBRID'"""
+    c = str(camp)
+    return c.split("_pf_")[-1] if "_pf_" in c else c
 
 
 NSEARCH_TYPES = [("브랜드검색", "bsa"), ("파워링크", "cpc"),
