@@ -27,15 +27,18 @@ def build_unified():
     return df
 
 
-def save_excel(df, path):
+def save_excel(df, path, y=2026, mth=7):
+    from total import write_total_sheet
     path.parent.mkdir(parents=True, exist_ok=True)
     with pd.ExcelWriter(path, engine="openpyxl", datetime_format="yyyy-mm-dd") as xw:
         df.to_excel(xw, sheet_name="통합", index=False)
         ws = xw.sheets["통합"]
-        # 컬럼 폭 자동
         for i, col in enumerate(df.columns, start=1):
-            width = max(len(str(col)), 12) + 2
-            ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = width
+            ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = max(len(str(col)), 12) + 2
+        # Total 대시보드 3개 브랜드
+        for brand in ["MI", "IT", "EBM"]:
+            wsb = xw.book.create_sheet(f"{brand}_Total")
+            write_total_sheet(wsb, brand, df[df["브랜드"] == brand], y, mth)
     return path
 
 

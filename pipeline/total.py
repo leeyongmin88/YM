@@ -9,8 +9,28 @@ warnings.simplefilter("ignore")
 import calendar
 from datetime import date, timedelta
 import pandas as pd
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
 BRAND_TITLE = {"MI": "미샤", "IT": "잇미샤", "EBM": "E.B.M"}
+
+# 스타일
+F_TITLE = Font(bold=True, size=14)
+F_SEC = Font(bold=True, color="FFFFFF")
+F_COL = Font(bold=True, size=9)
+F_SUM = Font(bold=True)
+FILL_SEC = PatternFill("solid", fgColor="002060")     # 섹션 헤더 남색
+FILL_COL = PatternFill("solid", fgColor="D9E2F3")     # 컬럼헤더 연파랑
+FILL_SUM = PatternFill("solid", fgColor="E7E6E6")     # 합계 음영
+SAT_COLOR = "0000FF"                                    # 토 파랑
+SUN_COLOR = "FF0000"                                    # 일 빨강
+CENTER = Alignment(horizontal="center", vertical="center")
+LEFT = Alignment(horizontal="left", vertical="center")
+
+# 숫자서식: 노출,클릭,클릭률,클릭당비용,집행예산,전환수,매출,회원가입,전환율,전환당비용,회원가입율,ROAS,객단가
+CUM_FMT = ["#,##0", "#,##0", "0.00%", "#,##0", "#,##0", "#,##0", "#,##0",
+           "#,##0", "0.00%", "#,##0", "0.00%", "#,##0.00", "#,##0"]
+CUM_KEYS = ["노출수", "클릭수", "클릭률", "클릭당비용", "집행예산", "전환수", "매출",
+            "회원가입", "전환율", "전환당비용", "회원가입율", "ROAS", "객단가"]
 
 # (구분, 라벨, 매체, 캠페인 부분문자열, 월예산)   부분문자열 ""=매체 전체
 MEDIA_ROWS = [
@@ -79,6 +99,60 @@ def week_in_month(d):
     return excel_weeknum2(d) - excel_weeknum2(first) + 1
 
 
+def media_cumulative(df_brand):
+    """[매체 총 누적] 각 라벨 지표 리스트 + 합계."""
+    rows = []
+    for gubun, label, media, pat, budget in MEDIA_ROWS:
+        rows.append((gubun, label, budget, _metrics(_slice(df_brand, media, pat))))
+    return rows, _metrics(df_brand)
+
+
+def gubun_rollup(cum_rows):
+    """구분(SA/DA성과형/DA노출형)별 지표 롤업."""
+    order = ["SA", "DA(성과형)", "DA(노출형)"]
+    acc = {g: dict(노출수=0, 클릭수=0, 집행예산=0, 전환수=0, 매출=0, 회원가입=0) for g in order}
+    for gubun, label, budget, m in cum_rows:
+        a = acc[gubun]
+        for k in a:
+            a[k] += m[k]
+    out = []
+    for g in order:
+        a = acc[g]
+        out.append((g, _metrics_from_sums(a["노출수"], a["클릭수"], a["집행예산"],
+                                          a["전환수"], a["매출"], a["회원가입"])))
+    return out
+
+
+def weekday_avg(daily_df, y, mth):
+    """요일별 평균 = 해당 요일 합계 / 그 달 해당 요일 수. 주중/주말/일 평균 포함."""
+    ndays = calendar.monthrange(y, mth)[1]
+    wd_count = [0] * 7
+    for day in range(1, ndays + 1):
+        wd_count[date(y, mth, day).weekday()] += 1
+    rows = []
+    for wd in range(7):
+        sub = daily_df[daily_df["wd"] == wd]
+        c = wd_count[wd] or 1
+        imp = sub["노출수"].sum() / c; clk = sub["클릭수"].sum() / c
+        cost = sub["집행예산"].sum() / c; cv = sub["전환수"].sum() / c
+        rev = sub["매출"].sum() / c
+        rows.append({"요일": WD_KR[wd], "wd": wd, "노출": imp, "클릭": clk,
+                     "클릭율": _div(clk, imp), "클릭비용": _div(cost, clk), "광고비": cost,
+                     "전환": cv, "전환비용": _div(cost, cv), "매출": rev,
+                     "ROAS": _div(rev, cost), "객단가": _div(rev, cv)})
+    def avg(sel):
+        keys = ["노출", "클릭", "광고비", "전환", "매출"]
+        n = len(sel) or 1
+        s = {k: sum(r[k] for r in sel) / n for k in keys}
+        return {**s, "클릭율": _div(s["클릭"], s["노출"]), "클릭비용": _div(s["광고비"], s["클릭"]),
+                "전환비용": _div(s["광고비"], s["전환"]), "ROAS": _div(s["매출"], s["광고비"]),
+                "객단가": _div(s["매출"], s["전환"])}
+    weekday = avg(rows[0:5])       # 월~금
+    weekend = avg(rows[5:7])       # 토,일
+    allavg = avg(rows)             # 전체
+    return rows, weekday, weekend, allavg
+
+
 def daily_frame(df_brand, y, mth):
     """1일~월말 전체 일자 성과 (빠진 날은 0)."""
     ndays = calendar.monthrange(y, mth)[1]
@@ -96,14 +170,158 @@ def daily_frame(df_brand, y, mth):
     return pd.DataFrame(recs)
 
 
+def _put(ws, r, c, v, fmt=None, font=None, fill=None, align=None, color=None):
+    cell = ws.cell(row=r, column=c, value=v)
+    if fmt:
+        cell.number_format = fmt
+    if font:
+        cell.font = font
+    elif color:
+        cell.font = Font(color=color)
+    if fill:
+        cell.fill = fill
+    if align:
+        cell.alignment = align
+    return cell
+
+
+def write_total_sheet(ws, brand, df_brand, y, mth):
+    """Total 대시보드 6개 섹션 작성. B열부터 시작."""
+    cum_rows, total = media_cumulative(df_brand)
+    daily = daily_frame(df_brand, y, mth)
+
+    _put(ws, 2, 2, f"- {y}년 {mth}월 -", font=F_TITLE)
+    _put(ws, 3, 2, f"[ {BRAND_TITLE[brand]} ] Ad Report", font=F_TITLE)
+    r = 6
+
+    # ── 1. 매체 예산 집행율 ──
+    _put(ws, r, 2, "[매체 예산 집행율]", font=F_SEC, fill=FILL_SEC)
+    _put(ws, r, 4, "vat, 마크업 포함")
+    r += 1
+    for c, h in enumerate(["구분", "매체별 성과", "월예산", "집행예산", "집행율", "이슈"], start=2):
+        _put(ws, r, c, h, font=F_COL, fill=FILL_COL, align=CENTER)
+    r += 1
+    tb = tc = 0.0
+    for gubun, label, budget, m in cum_rows:
+        _put(ws, r, 2, gubun, align=CENTER)
+        _put(ws, r, 3, label, align=LEFT)
+        _put(ws, r, 4, budget, "#,##0")
+        _put(ws, r, 5, m["집행예산"], "#,##0")
+        _put(ws, r, 6, _div(m["집행예산"], budget), "0.00%")
+        tb += budget; tc += m["집행예산"]
+        r += 1
+    _put(ws, r, 2, "합계", font=F_SUM, fill=FILL_SUM)
+    _put(ws, r, 4, tb, "#,##0", font=F_SUM, fill=FILL_SUM)
+    _put(ws, r, 5, tc, "#,##0", font=F_SUM, fill=FILL_SUM)
+    _put(ws, r, 6, _div(tc, tb), "0.00%", font=F_SUM, fill=FILL_SUM)
+    r += 3
+
+    # ── 2. 매체 총 누적 ──
+    _put(ws, r, 2, "[매체 총 누적]", font=F_SEC, fill=FILL_SEC)
+    r += 1
+    _put(ws, r, 2, "구분", font=F_COL, fill=FILL_COL, align=CENTER)
+    _put(ws, r, 3, "매체별 성과", font=F_COL, fill=FILL_COL, align=CENTER)
+    for i, h in enumerate(CUM_KEYS):
+        _put(ws, r, 4 + i, h, font=F_COL, fill=FILL_COL, align=CENTER)
+    r += 1
+    for gubun, label, budget, m in cum_rows:
+        _put(ws, r, 2, gubun, align=CENTER)
+        _put(ws, r, 3, label, align=LEFT)
+        for i, k in enumerate(CUM_KEYS):
+            _put(ws, r, 4 + i, m[k], CUM_FMT[i])
+        r += 1
+    _put(ws, r, 2, "합계", font=F_SUM, fill=FILL_SUM)
+    for i, k in enumerate(CUM_KEYS):
+        _put(ws, r, 4 + i, total[k], CUM_FMT[i], font=F_SUM, fill=FILL_SUM)
+    r += 3
+
+    # ── 3. 구분별 (디바이스별) ──
+    _put(ws, r, 2, "[구분별 요약]", font=F_SEC, fill=FILL_SEC)
+    r += 1
+    _put(ws, r, 2, "구분", font=F_COL, fill=FILL_COL, align=CENTER)
+    for i, h in enumerate(CUM_KEYS):
+        _put(ws, r, 4 + i, h, font=F_COL, fill=FILL_COL, align=CENTER)
+    r += 1
+    for g, m in gubun_rollup(cum_rows):
+        _put(ws, r, 2, g, align=CENTER)
+        for i, k in enumerate(CUM_KEYS):
+            _put(ws, r, 4 + i, m[k], CUM_FMT[i])
+        r += 1
+    r += 2
+
+    # ── 4. 요일별 평균 ──
+    _put(ws, r, 2, "[요일별 평균]", font=F_SEC, fill=FILL_SEC)
+    r += 1
+    wa_hdr = ["평균 노출수", "평균 클릭수", "클릭율", "클릭비용", "평균광고비",
+              "평균 전환수", "전환비용", "평균 매출", "ROAS", "객단가"]
+    wa_key = ["노출", "클릭", "클릭율", "클릭비용", "광고비", "전환", "전환비용", "매출", "ROAS", "객단가"]
+    wa_fmt = ["#,##0", "#,##0", "0.00%", "#,##0", "#,##0", "#,##0.0", "#,##0", "#,##0", "#,##0.00", "#,##0"]
+    _put(ws, r, 2, "요일", font=F_COL, fill=FILL_COL, align=CENTER)
+    for i, h in enumerate(wa_hdr):
+        _put(ws, r, 4 + i, h, font=F_COL, fill=FILL_COL, align=CENTER)
+    r += 1
+    wrows, wmid, wend, wall = weekday_avg(daily, y, mth)
+    for wr in wrows:
+        col = SAT_COLOR if wr["wd"] == 5 else SUN_COLOR if wr["wd"] == 6 else None
+        _put(ws, r, 2, wr["요일"], align=CENTER, color=col)
+        for i, k in enumerate(wa_key):
+            _put(ws, r, 4 + i, wr[k], wa_fmt[i])
+        r += 1
+    for nm, mm in [("주중 평균", wmid), ("주말 평균", wend), ("일 평균", wall)]:
+        _put(ws, r, 2, nm, font=F_SUM, fill=FILL_SUM)
+        for i, k in enumerate(wa_key):
+            _put(ws, r, 4 + i, mm[k], wa_fmt[i], font=F_SUM, fill=FILL_SUM)
+        r += 1
+    r += 2
+
+    # ── 5. 주간 ──
+    _put(ws, r, 2, "[주간]", font=F_SEC, fill=FILL_SEC)
+    r += 1
+    _put(ws, r, 2, "주간", font=F_COL, fill=FILL_COL, align=CENTER)
+    for i, h in enumerate(CUM_KEYS):
+        _put(ws, r, 4 + i, h, font=F_COL, fill=FILL_COL, align=CENTER)
+    r += 1
+    for wk in range(1, 6):
+        sub = daily[daily["주차"] == wk]
+        m = _metrics_from_sums(sub["노출수"].sum(), sub["클릭수"].sum(), sub["집행예산"].sum(),
+                               sub["전환수"].sum(), sub["매출"].sum(), sub["회원가입"].sum())
+        _put(ws, r, 2, f"{mth}월 {wk}주", align=CENTER)
+        for i, k in enumerate(CUM_KEYS):
+            _put(ws, r, 4 + i, m[k], CUM_FMT[i])
+        r += 1
+    r += 2
+
+    # ── 6. 일자별 성과 (1일~월말, 주말색) ──
+    _put(ws, r, 2, "[일자별 성과]", font=F_SEC, fill=FILL_SEC)
+    r += 1
+    _put(ws, r, 2, "요일", font=F_COL, fill=FILL_COL, align=CENTER)
+    _put(ws, r, 3, "날짜", font=F_COL, fill=FILL_COL, align=CENTER)
+    for i, h in enumerate(CUM_KEYS):
+        _put(ws, r, 4 + i, h, font=F_COL, fill=FILL_COL, align=CENTER)
+    r += 1
+    for _, d in daily.iterrows():
+        col = SAT_COLOR if d["wd"] == 5 else SUN_COLOR if d["wd"] == 6 else None
+        _put(ws, r, 2, d["요일"], align=CENTER, color=col)
+        _put(ws, r, 3, d["날짜"], "yyyy-mm-dd", align=CENTER, color=col)
+        for i, k in enumerate(CUM_KEYS):
+            _put(ws, r, 4 + i, d[k], CUM_FMT[i])
+        r += 1
+    _put(ws, r, 2, "합계", font=F_SUM, fill=FILL_SUM)
+    for i, k in enumerate(CUM_KEYS):
+        _put(ws, r, 4 + i, total[k], CUM_FMT[i], font=F_SUM, fill=FILL_SUM)
+
+    # 열 폭
+    ws.column_dimensions["A"].width = 2
+    ws.column_dimensions["B"].width = 12
+    ws.column_dimensions["C"].width = 16
+    for c in range(4, 4 + len(CUM_KEYS)):
+        ws.column_dimensions[ws.cell(row=1, column=c).column_letter].width = 13
+
+
 if __name__ == "__main__":
     from build import build_unified
     uni = build_unified()
-    y, mth = 2026, 7
     for b in ["MI", "IT", "EBM"]:
         sub = uni[uni["브랜드"] == b]
         tot = _metrics(sub)
-        df = daily_frame(sub, y, mth)
-        wk = df.groupby("주차")[["집행예산", "전환수", "매출"]].sum()
-        print(f"\n[{b}] 합계 광고비={tot['집행예산']:,.0f} 전환={tot['전환수']:.0f} 매출={tot['매출']:,.0f}")
-        print("  주간 광고비:", {int(k): round(v) for k, v in wk["집행예산"].items()})
+        print(f"[{b}] 광고비={tot['집행예산']:,.0f} 전환={tot['전환수']:.0f} 매출={tot['매출']:,.0f}")
