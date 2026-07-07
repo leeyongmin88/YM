@@ -39,6 +39,9 @@ def save_excel(df, path, y=2026, mth=7):
         for brand in ["MI", "IT", "EBM"]:
             wsb = xw.book.create_sheet(f"{brand}_Total")
             write_total_sheet(wsb, brand, df[df["브랜드"] == brand], y, mth)
+        # 매체별 상세 리포트
+        from media import add_media_sheets
+        add_media_sheets(xw.book, df, y, mth)
     return path
 
 
