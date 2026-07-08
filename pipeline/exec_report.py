@@ -59,11 +59,11 @@ def write_exec_report(ws, uni, y, mth):
     ndays = calendar.monthrange(y, mth)[1]
     last_row = 7 + ndays
     _put(ws, 2, 2, "■ 광고비용 집행현황", font=F_TITLE)
-    for c, h in [(1, "일자"), (2, "요일"), (3, "주차")]:
+    for c, h in [(2, "일자"), (3, "요일"), (4, "주차")]:
         _put(ws, 6, c, h, font=F_COL, fill=FILL_COL, align=CENTER)
 
     blocks = []
-    c = 4
+    c = 5   # A열 비움 → B부터, 데이터블록은 E부터
     for gtitle, subtitle, brand, da_items in BLOCKS:
         dfb = uni if brand is None else uni[uni["브랜드"] == brand]
         item_daily = {it: _cat(dfb, it).groupby("날짜키")["광고비용"].sum().to_dict()
@@ -90,16 +90,16 @@ def write_exec_report(ws, uni, y, mth):
             _put(ws, row, c0 + i, v, "#,##0", font=f, fill=fills[i])
 
     # 누적 (row 7)
-    _put(ws, 7, 1, "누적", font=F_SUM, fill=FILL_SUM)
+    _put(ws, 7, 2, "누적", font=F_SUM, fill=FILL_SUM)
     for c0, da_items, item_daily, fills in blocks:
         write_block_values(7, c0, da_items, item_daily, fills, None, bold=True)
     # 일자별 (row 8~)
     for day in range(1, ndays + 1):
         d = date(y, mth, day); dk = d.strftime("%Y%m%d"); row = 7 + day
         col = SAT_COLOR if d.weekday() == 5 else SUN_COLOR if d.weekday() == 6 else None
-        _put(ws, row, 1, d, "yyyy-mm-dd", align=CENTER, color=col)
-        _put(ws, row, 2, WD_KR[d.weekday()], align=CENTER, color=col)
-        _put(ws, row, 3, week_in_month(d), align=CENTER)
+        _put(ws, row, 2, d, "yyyy-mm-dd", align=CENTER, color=col)
+        _put(ws, row, 3, WD_KR[d.weekday()], align=CENTER, color=col)
+        _put(ws, row, 4, week_in_month(d), align=CENTER)
         for c0, da_items, item_daily, fills in blocks:
             write_block_values(row, c0, da_items, item_daily, fills, dk)
 
@@ -111,9 +111,10 @@ def write_exec_report(ws, uni, y, mth):
         rc = ws.cell(row=row, column=end_col)
         rc.border = Border(right=_THICK, left=rc.border.left)
 
-    # 열 너비
-    ws.column_dimensions["A"].width = 12
-    ws.column_dimensions["B"].width = 5
+    # 열 너비 (A 비움)
+    ws.column_dimensions["A"].width = 3
+    ws.column_dimensions["B"].width = 12
     ws.column_dimensions["C"].width = 5
-    for cc in range(4, end_col + 1):
+    ws.column_dimensions["D"].width = 5
+    for cc in range(5, end_col + 1):
         ws.column_dimensions[ws.cell(row=1, column=cc).column_letter].width = 11

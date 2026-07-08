@@ -65,37 +65,60 @@ def build_flat(uni):
 
 
 def write_flat(ws, uni, y, mth):
+    """A열 비움(B부터). 합계=SUBTOTAL(필터반영), 헤더 AutoFilter, 틀고정."""
     rows = build_flat(uni)
-    _put(ws, 2, 1, "통합_캠페인일자별 (자동)", font=F_TITLE)
-    hr = 3
+    C0 = 2                                  # 데이터 시작열 = B
+    _put(ws, 2, C0, "통합_캠페인일자별", font=F_TITLE)
+    sum_r, hdr_r, r0 = 3, 4, 5              # 합계행 / 헤더행 / 데이터시작
+    last = r0 + len(rows) - 1 if rows else r0
+
+    # 헤더 (row4)
     for i, h in enumerate(FLAT_COLS):
-        _put(ws, hr, 1 + i, h, font=F_COL, fill=FILL_COL, align=CENTER)
-    # 합계 (헤더 아래)
-    tot = {k: sum(r[k] for r in rows) for k in ["노출수", "클릭수", "집행예산", "거래수", "수익", "회원가입"]}
-    sr = hr + 1
-    _put(ws, sr, 1, "합계", font=F_SUM, fill=FILL_SUM)
-    agg = {"노출수": tot["노출수"], "클릭수": tot["클릭수"],
-           "클릭률": _div(tot["클릭수"], tot["노출수"]), "클릭당비용": _div(tot["집행예산"], tot["클릭수"]),
-           "집행예산": tot["집행예산"], "전환율": _div(tot["거래수"], tot["클릭수"]),
-           "거래수": tot["거래수"], "수익": tot["수익"], "회원가입": tot["회원가입"],
-           "회원가입율": _div(tot["회원가입"], tot["클릭수"]), "ROAS": _div(tot["수익"], tot["집행예산"]),
-           "객단가": _div(tot["수익"], tot["거래수"])}
-    for i, k in enumerate(FLAT_COLS[7:]):
-        _put(ws, sr, 8 + i, agg[k], FLAT_FMT[i], font=F_SUM, fill=FILL_SUM)
-    # 데이터
-    r0 = sr + 1
+        _put(ws, hdr_r, C0 + i, h, font=F_COL, fill=FILL_COL, align=CENTER)
+
+    # 합계 (row3, SUBTOTAL — 필터 시 자동 반영). 지표는 col C0+7 부터
+    def L(offset):
+        return ws.cell(row=1, column=C0 + offset).column_letter
+    _put(ws, sum_r, C0, "합계", font=F_SUM, fill=FILL_SUM)
+    rng = f"{r0}:{last}"
+    # 합계 컬럼 오프셋: 노출7 클릭8 클릭률9 클릭당비용10 집행예산11 전환율12 거래수13 수익14 회원가입15 회원가입율16 ROAS17 객단가18
+    sub = {7: None, 8: None, 11: None, 13: None, 14: None, 15: None}   # SUBTOTAL 대상(합)
+    for off in sub:
+        c = L(off)
+        _put(ws, sum_r, C0 + off, f"=SUBTOTAL(109,{c}{r0}:{c}{last})", FLAT_FMT[off - 7],
+             font=F_SUM, fill=FILL_SUM)
+    # 비율 = 합계행 셀 참조
+    ratio = {
+        9:  f"=IFERROR({L(8)}{sum_r}/{L(7)}{sum_r},0)",    # 클릭률=클릭/노출
+        10: f"=IFERROR({L(11)}{sum_r}/{L(8)}{sum_r},0)",   # 클릭당비용=집행/클릭
+        12: f"=IFERROR({L(13)}{sum_r}/{L(8)}{sum_r},0)",   # 전환율=거래/클릭
+        16: f"=IFERROR({L(15)}{sum_r}/{L(8)}{sum_r},0)",   # 회원가입율=회원/클릭
+        17: f"=IFERROR({L(14)}{sum_r}/{L(11)}{sum_r},0)",  # ROAS=수익/집행
+        18: f"=IFERROR({L(14)}{sum_r}/{L(13)}{sum_r},0)",  # 객단가=수익/거래
+    }
+    for off, formula in ratio.items():
+        _put(ws, sum_r, C0 + off, formula, FLAT_FMT[off - 7], font=F_SUM, fill=FILL_SUM)
+
+    # 데이터 (row5~)
     for j, rec in enumerate(rows):
         row = r0 + j
         wd = rec["날짜"].weekday()
         col = SAT_COLOR if wd == 5 else SUN_COLOR if wd == 6 else None
-        _put(ws, row, 1, rec["주차"], align=CENTER)
-        _put(ws, row, 2, rec["날짜"], "yyyy-mm-dd", align=CENTER, color=col)
+        _put(ws, row, C0, rec["주차"], align=CENTER)
+        _put(ws, row, C0 + 1, rec["날짜"], "yyyy-mm-dd", align=CENTER, color=col)
         for i, k in enumerate(["브랜드", "유형", "구분", "광고그룹", "지면"]):
-            _put(ws, row, 3 + i, rec[k], align=LEFT)
+            _put(ws, row, C0 + 2 + i, rec[k], align=LEFT)
         for i, k in enumerate(FLAT_COLS[7:]):
-            _put(ws, row, 8 + i, rec[k], FLAT_FMT[i])
-    # 열폭
-    for c, w in [(1, 5), (2, 12), (3, 7), (4, 8), (5, 8), (6, 26), (7, 11)]:
-        ws.column_dimensions[ws.cell(row=1, column=c).column_letter].width = w
-    for c in range(8, 20):
-        ws.column_dimensions[ws.cell(row=1, column=c).column_letter].width = 11
+            _put(ws, row, C0 + 7 + i, rec[k], FLAT_FMT[i])
+
+    # AutoFilter(헤더~데이터) + 틀고정(합계·헤더 항상 보이게)
+    ws.auto_filter.ref = f"{L(0)}{hdr_r}:{L(len(FLAT_COLS) - 1)}{last}"
+    ws.freeze_panes = ws.cell(row=r0, column=1).coordinate   # A5: 위 4행 고정
+
+    # 열폭 (A 비움)
+    ws.column_dimensions["A"].width = 3
+    widths = [(0, 5), (1, 12), (2, 7), (3, 8), (4, 8), (5, 26), (6, 11)]
+    for off, w in widths:
+        ws.column_dimensions[L(off)].width = w
+    for off in range(7, len(FLAT_COLS)):
+        ws.column_dimensions[L(off)].width = 11

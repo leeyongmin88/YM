@@ -35,6 +35,9 @@ def save_excel(df, path, y=2026, mth=7):
         ws = xw.sheets["통합"]
         for i, col in enumerate(df.columns, start=1):
             ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = max(len(str(col)), 12) + 2
+        # 날짜열(A) 형식 yyyy-mm-dd (시간 제거)
+        for row in range(2, len(df) + 2):
+            ws.cell(row=row, column=1).number_format = "yyyy-mm-dd"
         # Total 대시보드 3개 브랜드
         for brand in ["MI", "IT", "EBM"]:
             wsb = xw.book.create_sheet(f"{brand}_Total")
@@ -47,7 +50,7 @@ def save_excel(df, path, y=2026, mth=7):
         write_exec_report(xw.book.create_sheet("●광고비집행현황"), df, y, mth)
         # 플랫표
         from flat import write_flat
-        write_flat(xw.book.create_sheet("통합_캠페인일자별_자동"), df, y, mth)
+        write_flat(xw.book.create_sheet("통합_캠페인일자별"), df, y, mth)
         _reorder_by_brand(xw.book)
     return path
 
@@ -57,7 +60,7 @@ def _reorder_by_brand(book):
     brand_order = ["MI", "EBM", "IT"]
     suffix_order = ["Total", "N검색", "구글SA", "피맥스_리포트", "K디스", "크리테오",
                     "RTB", "메타_성과형", "메타_브랜딩형", "N디스"]
-    desired = (["통합", "●광고비집행현황", "통합_캠페인일자별_자동"]
+    desired = (["통합", "●광고비집행현황", "통합_캠페인일자별"]
                + [f"{b}_{s}" for b in brand_order for s in suffix_order])
     existing = {ws.title: ws for ws in book.worksheets}
     ordered = [existing[t] for t in desired if t in existing]
