@@ -8,8 +8,17 @@ import warnings
 warnings.simplefilter("ignore")
 import calendar
 from datetime import date
+from openpyxl.styles import PatternFill, Border, Side
 from total import (week_in_month, WD_KR, _put, F_TITLE, F_COL, F_SUM,
                    FILL_COL, FILL_SUM, SAT_COLOR, SUN_COLOR, CENTER)
+
+# 섹션 색: 전체(노랑) / SA(파랑) / DA(초록), 소계는 진하게
+FILL_TOT = PatternFill("solid", fgColor="FFE699")
+FILL_SA = PatternFill("solid", fgColor="DDEBF7")
+FILL_SA_SUB = PatternFill("solid", fgColor="9DC3E6")
+FILL_DA = PatternFill("solid", fgColor="E2EFDA")
+FILL_DA_SUB = PatternFill("solid", fgColor="A9D08E")
+_THICK = Side(style="medium", color="404040")
 
 SA_ITEMS = ["N검색", "D검색", "G검색"]
 # (그룹헤더, 소계라벨, 브랜드(None=전체), DA항목들)
@@ -40,8 +49,15 @@ def _cat(d, cat):
     return d.iloc[0:0]   # D검색·크루비·버즈빌·모비온·틱톡 = 0
 
 
+def _section_fills(da_items):
+    """블록 컬럼별 색: [전체, SA소계, SA항목..., DA소계, DA항목...]"""
+    return ([FILL_TOT, FILL_SA_SUB] + [FILL_SA] * len(SA_ITEMS)
+            + [FILL_DA_SUB] + [FILL_DA] * len(da_items))
+
+
 def write_exec_report(ws, uni, y, mth):
     ndays = calendar.monthrange(y, mth)[1]
+    last_row = 7 + ndays
     _put(ws, 2, 2, "■ 광고비용 집행현황", font=F_TITLE)
     for c, h in [(1, "일자"), (2, "요일"), (3, "주차")]:
         _put(ws, 6, c, h, font=F_COL, fill=FILL_COL, align=CENTER)
@@ -52,34 +68,31 @@ def write_exec_report(ws, uni, y, mth):
         dfb = uni if brand is None else uni[uni["브랜드"] == brand]
         item_daily = {it: _cat(dfb, it).groupby("날짜키")["광고비용"].sum().to_dict()
                       for it in SA_ITEMS + da_items}
-        cols = ["전체", "소계"] + SA_ITEMS + ["소계"] + da_items
+        cols = ["전체", "SA소계"] + SA_ITEMS + ["DA소계"] + da_items
+        fills = _section_fills(da_items)
         _put(ws, 4, c, gtitle, font=F_COL, fill=FILL_COL, align=CENTER)
-        _put(ws, 5, c, subtitle, font=F_COL, fill=FILL_COL, align=CENTER)
+        _put(ws, 5, c, subtitle, font=F_COL, fill=FILL_TOT, align=CENTER)
         for i, cn in enumerate(cols):
-            _put(ws, 6, c + i, cn, font=F_COL, fill=FILL_COL, align=CENTER)
-        blocks.append((c, da_items, item_daily))
+            _put(ws, 6, c + i, cn, font=F_COL, fill=fills[i], align=CENTER)
+        blocks.append((c, da_items, item_daily, fills))
         c += len(cols)
+    end_col = c - 1
 
-    def write_block_values(row, c0, da_items, item_daily, dk, bold=False):
+    def write_block_values(row, c0, da_items, item_daily, fills, dk, bold=False):
         f = F_SUM if bold else None
-        fl = FILL_SUM if bold else None
         get = (lambda it: sum(item_daily[it].values())) if dk is None \
             else (lambda it: item_daily[it].get(dk, 0))
+        vals = [None]  # placeholder, filled below
         sa = sum(get(it) for it in SA_ITEMS)
         da = sum(get(it) for it in da_items)
-        _put(ws, row, c0, sa + da, "#,##0", font=f, fill=fl)
-        _put(ws, row, c0 + 1, sa, "#,##0", font=f, fill=fl)
-        for i, it in enumerate(SA_ITEMS):
-            _put(ws, row, c0 + 2 + i, get(it), "#,##0", font=f, fill=fl)
-        _put(ws, row, c0 + 2 + len(SA_ITEMS), da, "#,##0", font=f, fill=fl)
-        base = c0 + 3 + len(SA_ITEMS)
-        for i, it in enumerate(da_items):
-            _put(ws, row, base + i, get(it), "#,##0", font=f, fill=fl)
+        vals = [sa + da, sa] + [get(it) for it in SA_ITEMS] + [da] + [get(it) for it in da_items]
+        for i, v in enumerate(vals):
+            _put(ws, row, c0 + i, v, "#,##0", font=f, fill=fills[i])
 
     # 누적 (row 7)
     _put(ws, 7, 1, "누적", font=F_SUM, fill=FILL_SUM)
-    for c0, da_items, item_daily in blocks:
-        write_block_values(7, c0, da_items, item_daily, None, bold=True)
+    for c0, da_items, item_daily, fills in blocks:
+        write_block_values(7, c0, da_items, item_daily, fills, None, bold=True)
     # 일자별 (row 8~)
     for day in range(1, ndays + 1):
         d = date(y, mth, day); dk = d.strftime("%Y%m%d"); row = 7 + day
@@ -87,9 +100,20 @@ def write_exec_report(ws, uni, y, mth):
         _put(ws, row, 1, d, "yyyy-mm-dd", align=CENTER, color=col)
         _put(ws, row, 2, WD_KR[d.weekday()], align=CENTER, color=col)
         _put(ws, row, 3, week_in_month(d), align=CENTER)
-        for c0, da_items, item_daily in blocks:
-            write_block_values(row, c0, da_items, item_daily, dk)
+        for c0, da_items, item_daily, fills in blocks:
+            write_block_values(row, c0, da_items, item_daily, fills, dk)
 
+    # 블록 구분 테두리 (각 블록 시작열 왼쪽 + 마지막열 오른쪽)
+    for row in range(4, last_row + 1):
+        for c0, *_ in blocks:
+            cell = ws.cell(row=row, column=c0)
+            cell.border = Border(left=_THICK)
+        rc = ws.cell(row=row, column=end_col)
+        rc.border = Border(right=_THICK, left=rc.border.left)
+
+    # 열 너비
     ws.column_dimensions["A"].width = 12
     ws.column_dimensions["B"].width = 5
     ws.column_dimensions["C"].width = 5
+    for cc in range(4, end_col + 1):
+        ws.column_dimensions[ws.cell(row=1, column=cc).column_letter].width = 11
