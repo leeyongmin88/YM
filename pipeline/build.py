@@ -45,6 +45,9 @@ def save_excel(df, path, y=2026, mth=7):
         # ●광고비집행현황
         from exec_report import write_exec_report
         write_exec_report(xw.book.create_sheet("●광고비집행현황"), df, y, mth)
+        # 플랫표
+        from flat import write_flat
+        write_flat(xw.book.create_sheet("통합_캠페인일자별_자동"), df, y, mth)
         _reorder_by_brand(xw.book)
     return path
 
@@ -54,7 +57,8 @@ def _reorder_by_brand(book):
     brand_order = ["MI", "EBM", "IT"]
     suffix_order = ["Total", "N검색", "구글SA", "피맥스_리포트", "K디스", "크리테오",
                     "RTB", "메타_성과형", "메타_브랜딩형", "N디스"]
-    desired = ["통합", "●광고비집행현황"] + [f"{b}_{s}" for b in brand_order for s in suffix_order]
+    desired = (["통합", "●광고비집행현황", "통합_캠페인일자별_자동"]
+               + [f"{b}_{s}" for b in brand_order for s in suffix_order])
     existing = {ws.title: ws for ws in book.worksheets}
     ordered = [existing[t] for t in desired if t in existing]
     ordered += [ws for ws in book.worksheets if ws not in ordered]
