@@ -72,8 +72,15 @@ def write_exec_report(ws, uni, y, mth):
         fills = _section_fills(da_items)
         _put(ws, 4, c, gtitle, font=F_COL, fill=FILL_COL, align=CENTER)
         _put(ws, 5, c, subtitle, font=F_COL, fill=FILL_TOT, align=CENTER)
+        # 5행 SA/DA 그룹 병합 헤더
+        ws.merge_cells(start_row=5, start_column=c + 1, end_row=5, end_column=c + 4)
+        _put(ws, 5, c + 1, "SA", font=F_COL, fill=FILL_SA_SUB, align=CENTER)
+        ws.merge_cells(start_row=5, start_column=c + 5, end_row=5, end_column=c + len(cols) - 1)
+        _put(ws, 5, c + 5, "DA", font=F_COL, fill=FILL_DA_SUB, align=CENTER)
+        # 6행 컬럼헤더 (SA 상세: N/D/G검색은 색 없음)
         for i, cn in enumerate(cols):
-            _put(ws, 6, c + i, cn, font=F_COL, fill=fills[i], align=CENTER)
+            hf = None if i in (2, 3, 4) else fills[i]
+            _put(ws, 6, c + i, cn, font=F_COL, fill=hf, align=CENTER)
         blocks.append((c, da_items, item_daily, fills))
         c += len(cols)
     end_col = c - 1
