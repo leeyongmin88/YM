@@ -55,6 +55,9 @@ def save_excel(df, path, y=2026, mth=7):
         from summary import write_brand_summary, write_report_request
         write_brand_summary(xw.book.create_sheet("브랜드 종합"), df, y, mth)
         write_report_request(xw.book.create_sheet("리포트 추가 요청"), df, y, mth)
+        # 전체 디자인 마감 (글꼴·테두리 통일)
+        from style import apply_global_style
+        apply_global_style(xw.book)
         _reorder_by_brand(xw.book)
     return path
 
