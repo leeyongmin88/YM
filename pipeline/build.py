@@ -72,11 +72,20 @@ def _reorder_by_brand(book):
     book._sheets = ordered
 
 
+def detect_month(df):
+    """RAW 데이터에서 대상 연·월 자동 감지 (가장 많은 날짜의 연월)."""
+    ym = df["날짜"].dt.to_period("M")
+    top = ym.value_counts().idxmax()
+    return top.year, top.month
+
+
 def main():
     df = build_unified()
+    y, mth = detect_month(df)
     out = OUT_DIR / "통합_리포트.xlsx"
-    save_excel(df, out)
+    save_excel(df, out, y, mth)
     # 요약
+    print(f"대상 월: {y}년 {mth}월  (데이터에서 자동 감지)")
     print("통합 시트 생성 완료:", out)
     print("  총 행수:", len(df))
     g = df.groupby("매체")[["광고비용", "GA구매", "GA구매수익"]].sum()
