@@ -99,13 +99,19 @@ def write_brand_summary(ws, uni, y, mth):
         # 브랜드 세로병합
         ws.merge_cells(start_row=brand_start, start_column=2, end_row=r - 1, end_column=2)
         bc = ws.cell(brand_start, 2, b); bc.font = F_SUM; bc.alignment = center_v
-        # 소계
+        # 소계 (B~F 병합)
         mt = _metrics(dfb)
-        _put(ws, r, 4, "소계", font=F_SUM, fill=FILL_SUM, align=CENTER)
-        ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=5)
+        _put(ws, r, 2, "소계", font=F_SUM, fill=FILL_SUM, align=CENTER)
+        ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=6)
         for i, k in enumerate(BS_KEYS):
             _put(ws, r, 7 + i, mt[k], BS_FMT[i], font=F_SUM, fill=FILL_SUM)
-        r += 2
+        r += 1               # 브랜드 사이 빈행 없음
+
+    # 표 전체 테두리 (헤더6행 ~ 마지막행, B~마지막열)
+    box = Border(*[Side("thin", "D9D9D9")] * 4)
+    for rr in range(6, r):
+        for cc in range(2, ncol + 1):
+            ws.cell(rr, cc).border = box
 
     ws.column_dimensions["A"].width = 3
     ws.column_dimensions["D"].width = 22
