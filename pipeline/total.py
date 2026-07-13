@@ -15,11 +15,11 @@ BRAND_TITLE = {"MI": "미샤", "IT": "잇미샤", "EBM": "E.B.M"}
 
 # 스타일
 F_TITLE = Font(bold=True, size=14)
-F_SEC = Font(bold=True, color="FFFFFF")
-F_COL = Font(bold=True, size=9)
+F_SEC = Font(bold=True, size=12, color="1F4E78")      # 섹션 제목: 파란 글씨(채움없음)
+F_COL = Font(bold=True, size=10, color="FFFFFF")      # 컬럼헤더: 흰 글씨
 F_SUM = Font(bold=True)
-FILL_SEC = PatternFill("solid", fgColor="002060")     # 섹션 헤더 남색
-FILL_COL = PatternFill("solid", fgColor="D9E2F3")     # 컬럼헤더 연파랑
+FILL_SEC = None                                        # 섹션 제목 채움 없음
+FILL_COL = PatternFill("solid", fgColor="1F4E78")     # 컬럼헤더 네이비
 FILL_SUM = PatternFill("solid", fgColor="E7E6E6")     # 합계 음영
 SAT_COLOR = "0000FF"                                    # 토 파랑
 SUN_COLOR = "FF0000"                                    # 일 빨강
