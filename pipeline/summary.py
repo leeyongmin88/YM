@@ -93,6 +93,8 @@ def write_brand_summary(ws, uni, y, mth):
                     _put(ws, r, 6, "-", align=CENTER)
                 for i, k in enumerate(BS_KEYS):
                     _put(ws, r, 7 + i, m[k], BS_FMT[i])
+                if m["집행예산"] == 0:          # 집행 0 → 행 숨김(발생 시 자동 표시)
+                    ws.row_dimensions[r].hidden = True
                 r += 1
             ws.merge_cells(start_row=type_start, start_column=3, end_row=r - 1, end_column=3)
             cell = ws.cell(type_start, 3, gubun); cell.alignment = center_v

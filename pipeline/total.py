@@ -27,13 +27,13 @@ CENTER = Alignment(horizontal="center", vertical="center")
 LEFT = Alignment(horizontal="left", vertical="center")
 
 # 숫자서식: 노출,클릭,클릭률,클릭당비용,집행예산,전환수,매출,회원가입,전환율,전환당비용,회원가입율,ROAS,객단가
-# 순서: ...회원가입, 세션수, [전환율, 전환당비용, ROAS, 객단가, 회원가입율, 세션당비용]
+# MI_Total_F 순서: ...매출, 세션수, 회원가입, 전환율, 전환당비용, 세션당비용, 회원가입율, ROAS, 객단가
 CUM_KEYS = ["노출수", "클릭수", "클릭률", "클릭당비용", "집행예산", "전환수", "매출",
-            "회원가입", "세션수", "전환율", "전환당비용", "ROAS", "객단가",
-            "회원가입율", "세션당비용"]
+            "세션수", "회원가입", "전환율", "전환당비용", "세션당비용",
+            "회원가입율", "ROAS", "객단가"]
 CUM_FMT = ["#,##0", "#,##0", "0.00%", "#,##0", "#,##0", "#,##0", "#,##0",
-           "#,##0", "#,##0", "0.00%", "#,##0", "#,##0.00", "#,##0",
-           "0.00%", "#,##0"]
+           "#,##0", "#,##0", "0.00%", "#,##0", "#,##0",
+           "0.00%", "#,##0.00", "#,##0"]
 
 # (구분, 라벨, 매체, 캠페인 부분문자열, 월예산)   부분문자열 ""=매체 전체
 MEDIA_ROWS = [
@@ -49,6 +49,7 @@ MEDIA_ROWS = [
     ("DA(성과형)", "크리테오",         "Criteo",   "",           17_000_000),
     ("DA(성과형)", "인스타그램 ",      "Meta",     "pf",          8_160_000),
     ("DA(성과형)", "RTB",             "RTB",      "",            2_700_000),
+    ("DA(성과형)", "신규 매체",        "_NONE_",   "",            3_000_000),
     ("DA(성과형)", "구글 GDN",         "Google",   "gdn",                 0),
     ("DA(노출형)", "인스타그램 ",      "Meta",     "br",          2_200_000),
     ("DA(노출형)", "구글 YouTube",     "Google",   "youtube",             0),
@@ -239,8 +240,8 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
         _put(ws, r, 4 + i, total[k], CUM_FMT[i], font=F_SUM, fill=FILL_SUM)
     r += 3
 
-    # ── 3. 디바이스 별 (구분 롤업) ──
-    _put(ws, r, 2, "[디바이스 별]", font=F_SEC, fill=FILL_SEC)
+    # ── 3. 광고 형태별 (구분 롤업) ──
+    _put(ws, r, 2, "[광고 형태별]", font=F_SEC, fill=FILL_SEC)
     _put(ws, r, 8, "어드민 전환")
     r += 1
     _put(ws, r, 2, "구분", font=F_COL, fill=FILL_COL, align=CENTER)
@@ -292,8 +293,8 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
     _put(ws, r, 2, "[주간]", font=F_SEC, fill=FILL_SEC)
     r += 1
     wk_hdr = ["노출수", "클릭수", "클릭률", "클릭당비용", "광고비", "전환수", "매출",
-              "회원가입", "세션수", "전환율", "전환당비용", "ROAS", "객단가",
-              "회원가입율", "세션당비용"]
+              "세션수", "회원가입", "전환율", "전환당비용", "세션당비용",
+              "회원가입율", "ROAS", "객단가"]
     _put(ws, r, 2, "주간", font=F_COL, fill=FILL_COL, align=CENTER)
     for i, h in enumerate(wk_hdr):
         _put(ws, r, 4 + i, h, font=F_COL, fill=FILL_COL, align=CENTER)
