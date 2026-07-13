@@ -79,7 +79,7 @@ def write_flat(ws, uni, y, mth):
     # 합계 (row3, SUBTOTAL — 필터 시 자동 반영). 지표는 col C0+7 부터
     def L(offset):
         return ws.cell(row=1, column=C0 + offset).column_letter
-    _put(ws, sum_r, C0, "합계", font=F_SUM, fill=FILL_SUM)
+    # B3(합계 라벨) 셀은 비움(색·텍스트 없음)
     rng = f"{r0}:{last}"
     # 합계 컬럼 오프셋: 노출7 클릭8 클릭률9 클릭당비용10 집행예산11 전환율12 거래수13 수익14 회원가입15 회원가입율16 ROAS17 객단가18
     sub = {7: None, 8: None, 11: None, 13: None, 14: None, 15: None}   # SUBTOTAL 대상(합)
