@@ -70,12 +70,12 @@ SUBTYPES = [
 def write_report_request(ws, uni, y, mth):
     ndays = calendar.monthrange(y, mth)[1]
     _put(ws, 2, 2, "■ 광고비용 데일리 집행현황", font=F_TITLE)
-    # 헤더 (row 3): 브랜드, 매체, 날짜1..N, 월누계
-    _put(ws, 3, 2, "브랜드", font=F_COL, fill=FILL_COL, align=CENTER)
-    _put(ws, 3, 3, "매체", font=F_COL, fill=FILL_COL, align=CENTER)
+    # (3행 공백) 헤더 (row 4): 브랜드, 매체, 날짜1..N, 월누계
+    _put(ws, 4, 2, "브랜드", font=F_COL, fill=FILL_COL, align=CENTER)
+    _put(ws, 4, 3, "매체", font=F_COL, fill=FILL_COL, align=CENTER)
     for d in range(1, ndays + 1):
-        _put(ws, 3, 3 + d, date(y, mth, d), "mm-dd", font=F_COL, fill=FILL_COL, align=CENTER)
-    _put(ws, 3, 4 + ndays, "월 누계", font=F_COL, fill=FILL_COL, align=CENTER)
+        _put(ws, 4, 3 + d, date(y, mth, d), "mm-dd", font=F_COL, fill=FILL_COL, align=CENTER)
+    _put(ws, 4, 4 + ndays, "월 누계", font=F_COL, fill=FILL_COL, align=CENTER)
 
     def cost_series(dfb, media, pat):
         d = dfb[dfb["매체"] == media]
@@ -83,7 +83,7 @@ def write_report_request(ws, uni, y, mth):
             d = d[d["캠페인"].str.contains(pat, case=False, regex=False)]
         return d.groupby("날짜키")["광고비용"].sum().to_dict()
 
-    r = 4
+    r = 5
     center_v = Alignment(horizontal="center", vertical="center")
     for b in ["전체", "MI", "EBM", "IT"]:
         dfb = uni if b == "전체" else uni[uni["브랜드"] == b]
