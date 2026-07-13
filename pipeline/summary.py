@@ -8,7 +8,7 @@ import warnings
 warnings.simplefilter("ignore")
 import calendar
 from datetime import date
-from openpyxl.styles import Alignment
+from openpyxl.styles import Alignment, Border, Side
 from total import (MEDIA_ROWS, _slice, _metrics, _put, F_TITLE, F_SEC, F_COL, F_SUM,
                    FILL_SEC, FILL_COL, FILL_SUM, CENTER, LEFT, BRAND_TITLE)
 
@@ -85,6 +85,7 @@ def write_report_request(ws, uni, y, mth):
 
     r = 5
     center_v = Alignment(horizontal="center", vertical="center")
+    box = Border(*[Side("thin", "D9D9D9")] * 4)   # 브랜드 셀 테두리(전역과 동일)
     for b in ["전체", "MI", "EBM", "IT"]:
         dfb = uni if b == "전체" else uni[uni["브랜드"] == b]
         start = r
@@ -98,12 +99,23 @@ def write_report_request(ws, uni, y, mth):
                 total += v
                 _put(ws, r, 3 + dd, v, "#,##0")
             _put(ws, r, 4 + ndays, total, "#,##0", font=F_SUM)
+            if total == 0:                      # 집행 0 → 행 숨김(발생하면 자동 표시)
+                ws.row_dimensions[r].hidden = True
             r += 1
-        # 브랜드 셀 세로 병합
+        # 브랜드 셀 세로 병합 + 테두리
         ws.merge_cells(start_row=start, start_column=2, end_row=r - 1, end_column=2)
+        for rr in range(start, r):
+            ws.cell(rr, 2).border = box
         cell = ws.cell(start, 2, b)
         cell.font = F_SUM
         cell.alignment = center_v
+
+    # 표 전체(헤더4행~데이터끝, B~월누계열) 모든 테두리
+    last_row = r - 1
+    last_col = 4 + ndays
+    for rr in range(4, last_row + 1):
+        for cc in range(2, last_col + 1):
+            ws.cell(rr, cc).border = box
 
     ws.column_dimensions["A"].width = 3
     ws.column_dimensions["B"].width = 8
