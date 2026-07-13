@@ -8,6 +8,7 @@ import warnings
 warnings.simplefilter("ignore")
 import calendar
 from datetime import date
+from openpyxl.styles import Alignment
 from total import (MEDIA_ROWS, _slice, _metrics, _put, F_TITLE, F_SEC, F_COL, F_SUM,
                    FILL_SEC, FILL_COL, FILL_SUM, CENTER, LEFT, BRAND_TITLE)
 
@@ -52,17 +53,17 @@ def write_brand_summary(ws, uni, y, mth):
         ws.column_dimensions[ws.cell(row=1, column=c).column_letter].width = 12
 
 
-# 리포트 추가 요청: 매체 세부 (라벨, 매체, 캠페인패턴)
+# 리포트 추가 요청: 매체 세부 16종 (6월F 순서). 모든 브랜드에 전 매체 행 표시.
 SUBTYPES = [
     ("Google Pmax", "Google", "pmax"), ("Google Keyword", "Google", "cpc"),
-    ("Google GDN", "Google", "gdn"), ("Google Youtube", "Google", "youtube"),
     ("Naver Brand SA", "Naver SA", "bsa"), ("Naver Keyword SA", "Naver SA", "cpc"),
     ("Naver Shopping SA", "Naver SA", "shopping"), ("Naver Place SA", "Naver SA", "place"),
     ("Naver Ambassador", "Naver SA", "Ambassador"),
     ("Naver DA_Smart", "Naver", "smart"), ("Naver DA_ADVoost", "Naver", "advoost"),
     ("KAKAO Bizboard", "KKO", "biz"), ("KAKAO Native", "KKO", "ntv"),
     ("KAKAO Catalog", "KKO", "ca"),
-    ("Criteo", "Criteo", ""), ("RTB하우스", "RTB", ""), ("Meta", "Meta", ""),
+    ("Criteo", "Criteo", ""), ("RTB House", "RTB", ""),
+    ("Instagram_성과형", "Meta", "pf"), ("Instagram_노출형(br)", "Meta", "br"),
 ]
 
 
@@ -83,14 +84,12 @@ def write_report_request(ws, uni, y, mth):
         return d.groupby("날짜키")["광고비용"].sum().to_dict()
 
     r = 4
+    center_v = Alignment(horizontal="center", vertical="center")
     for b in ["전체", "MI", "EBM", "IT"]:
         dfb = uni if b == "전체" else uni[uni["브랜드"] == b]
-        first = True
-        for label, media, pat in SUBTYPES:
+        start = r
+        for label, media, pat in SUBTYPES:      # 모든 매체 행 표시(0이어도)
             series = cost_series(dfb, media, pat)
-            if b != "전체" and not series:
-                continue                         # 브랜드별은 데이터 있는 매체만
-            _put(ws, r, 2, b if first else None, align=CENTER, font=F_SUM if first else None)
             _put(ws, r, 3, label, align=LEFT)
             total = 0.0
             for dd in range(1, ndays + 1):
@@ -99,13 +98,16 @@ def write_report_request(ws, uni, y, mth):
                 total += v
                 _put(ws, r, 3 + dd, v, "#,##0")
             _put(ws, r, 4 + ndays, total, "#,##0", font=F_SUM)
-            first = False
             r += 1
-        r += 1        # 브랜드 사이 공백
+        # 브랜드 셀 세로 병합
+        ws.merge_cells(start_row=start, start_column=2, end_row=r - 1, end_column=2)
+        cell = ws.cell(start, 2, b)
+        cell.font = F_SUM
+        cell.alignment = center_v
 
     ws.column_dimensions["A"].width = 3
     ws.column_dimensions["B"].width = 8
-    ws.column_dimensions["C"].width = 16
+    ws.column_dimensions["C"].width = 18
     for c in range(4, 4 + ndays):
         ws.column_dimensions[ws.cell(row=1, column=c).column_letter].width = 9
     ws.column_dimensions[ws.cell(row=1, column=4 + ndays).column_letter].width = 13

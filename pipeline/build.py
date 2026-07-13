@@ -67,7 +67,7 @@ def _reorder_by_brand(book):
     brand_order = ["MI", "EBM", "IT"]
     suffix_order = ["Total", "N검색", "구글SA", "피맥스_리포트", "K디스", "크리테오",
                     "RTB", "메타_성과형", "메타_브랜딩형", "N디스"]
-    desired = (["통합", "●광고비집행현황", "리포트 추가 요청", "통합_캠페인일자별", "브랜드 종합"]
+    desired = (["통합", "리포트 추가 요청", "●광고비집행현황", "브랜드 종합", "통합_캠페인일자별"]
                + [f"{b}_{s}" for b in brand_order for s in suffix_order])
     existing = {ws.title: ws for ws in book.worksheets}
     ordered = [existing[t] for t in desired if t in existing]
