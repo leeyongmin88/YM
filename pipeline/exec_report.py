@@ -50,8 +50,8 @@ def _cat(d, cat):
 
 
 def _section_fills(da_items):
-    """블록 컬럼별 색: [전체, SA소계, SA항목..., DA소계, DA항목...]"""
-    return ([FILL_TOT, FILL_SA_SUB] + [FILL_SA] * len(SA_ITEMS)
+    """블록 컬럼별 색: [전체, SA소계, SA항목(무색)..., DA소계, DA항목...]"""
+    return ([FILL_TOT, FILL_SA_SUB] + [None] * len(SA_ITEMS)
             + [FILL_DA_SUB] + [FILL_DA] * len(da_items))
 
 
