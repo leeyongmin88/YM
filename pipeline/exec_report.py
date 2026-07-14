@@ -122,7 +122,8 @@ def write_exec_report(ws, uni, y, mth):
     _put(ws, 7, 4, None, fill=FILL_TOT)
     for c0, ncols, da_items, item_daily, dfills, fonts in blocks:
         write_vals(7, c0, da_items, item_daily, dfills, fonts, None, bold=True)
-    # 일자별 (row 8~)
+    # 일자별 (row 8~). 집행액 0인 날은 행 숨김(집행 발생 시 자동 해제·동적)
+    day_total = uni.groupby("날짜키")["광고비용"].sum().to_dict()
     for day in range(1, ndays + 1):
         d = date(y, mth, day); dk = d.strftime("%Y%m%d"); row = 7 + day
         col = SAT_COLOR if d.weekday() == 5 else SUN_COLOR if d.weekday() == 6 else None
@@ -131,6 +132,8 @@ def write_exec_report(ws, uni, y, mth):
         _put(ws, row, 4, week_in_month(d), align=CENTER)
         for c0, ncols, da_items, item_daily, dfills, fonts in blocks:
             write_vals(row, c0, da_items, item_daily, dfills, fonts, dk)
+        if day_total.get(dk, 0) == 0:              # 집행액 없는 일자 숨김
+            ws.row_dimensions[row].hidden = True
 
     # 테두리: 블록경계 medium, 내부 hair, 행 thin
     starts = {2} | {b[0] for b in blocks}
