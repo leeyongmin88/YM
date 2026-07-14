@@ -193,7 +193,7 @@ def _put(ws, r, c, v, fmt=None, font=None, fill=None, align=None, color=None):
     return cell
 
 
-_TB_SIDE = Side(style="thin", color="D9D9D9")
+_TB_SIDE = Side(style="thin", color="BFBFBF")     # 중간 회색(style.py와 동일)
 TOTAL_BORDER = Border(left=_TB_SIDE, right=_TB_SIDE, top=_TB_SIDE, bottom=_TB_SIDE)
 def _merge_bc(ws, r, fill=None, font=None):
     """B:C 가로 병합 + 가운데. 필요 시 C에 색/폰트 적용해 밴드 연속."""

@@ -6,7 +6,7 @@
 from openpyxl.styles import Font, Border, Side, Alignment
 
 FONT = "맑은 고딕"
-THIN = Side(style="thin", color="D9D9D9")
+THIN = Side(style="thin", color="BFBFBF")     # 중간 회색(연회색 D9D9D9보다 선명)
 BORDER = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
 VCENTER = Alignment(vertical="center")
 
