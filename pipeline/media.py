@@ -6,7 +6,7 @@
 """
 import warnings
 warnings.simplefilter("ignore")
-from openpyxl.styles import Font, PatternFill
+from openpyxl.styles import Font, PatternFill, Border, Side
 from total import (daily_frame, weekday_avg, _metrics, _metrics_from_sums, _div,
                    F_TITLE, F_SEC, F_COL, F_SUM, FILL_SEC, FILL_COL, FILL_SUM,
                    SAT_COLOR, SUN_COLOR, CENTER, LEFT, _put, BRAND_TITLE, WD_KR)
@@ -324,6 +324,8 @@ NS_F_SEC = Font(bold=True, size=9, color="FF0070C0")
 NS_F_COL = Font(bold=True, size=9, color="FFFFFFFF")
 NS_FILL_COL = PatternFill("solid", fgColor="FF002060")
 NS_F_SUM = Font(bold=True, size=9)
+NS_LABEL_COLOR = "FF0070C0"                                 # 라벨(섹션제목·블록라벨) 식별용
+NS_LABEL_BORDER = Border(bottom=Side(style="thin", color="FFBFBFBF"))  # 표 맞닿는 아래변만
 NS_FILL_TOTAL = PatternFill("solid", fgColor="FFF2F2F2")   # 누적 전체합계(BFBFBF 테두리 보이게 밝은 회색)
 NS_FILL_SUM = PatternFill("solid", fgColor="FFDDEBF7")     # 주간 합계(연파랑)
 
@@ -423,7 +425,12 @@ def write_nsearch(ws, brand, df_f, y, mth):
                 continue
             o = cell.font
             sz = 16 if (o.size or 0) >= 14 else 9
+            is_label = o.color is not None and getattr(o.color, "rgb", None) == NS_LABEL_COLOR
             cell.font = Font(name=o.name, size=sz, bold=o.bold, color=o.color)
+            # 라벨(섹션제목·블록라벨): 표와 맞닿는 아래변만 테두리 (박스 제거)
+            # 아래변 지정 → apply_global_style의 _has_border 가드가 전체 테두리 덮어쓰기 방지
+            if is_label:
+                cell.border = NS_LABEL_BORDER
 
     ws.column_dimensions["A"].width = 2
     for p in range(len(NS_PRODUCTS)):
