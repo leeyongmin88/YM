@@ -324,7 +324,7 @@ NS_F_SEC = Font(bold=True, size=9, color="FF0070C0")
 NS_F_COL = Font(bold=True, size=9, color="FFFFFFFF")
 NS_FILL_COL = PatternFill("solid", fgColor="FF002060")
 NS_F_SUM = Font(bold=True, size=9)
-NS_FILL_TOTAL = PatternFill("solid", fgColor="FFE7E6E6")   # 누적 전체합계(회색)
+NS_FILL_TOTAL = PatternFill("solid", fgColor="FFF2F2F2")   # 누적 전체합계(BFBFBF 테두리 보이게 밝은 회색)
 NS_FILL_SUM = PatternFill("solid", fgColor="FFDDEBF7")     # 주간 합계(연파랑)
 
 

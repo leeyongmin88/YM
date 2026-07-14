@@ -21,7 +21,7 @@ F_COL = Font(bold=True, size=10, color="FFFFFFFF")    # 컬럼헤더: 흰 글씨
 F_SUM = Font(bold=True)
 FILL_SEC = None                                        # 섹션 제목 채움 없음
 FILL_COL = PatternFill("solid", fgColor="FF1F4E78")   # 컬럼헤더 네이비
-FILL_SUM = PatternFill("solid", fgColor="FFE7E6E6")   # 합계 음영
+FILL_SUM = PatternFill("solid", fgColor="FFF2F2F2")   # 합계 음영(BFBFBF 테두리 보이게 밝은 회색)
 SAT_COLOR = "FF0000FF"                                  # 토 파랑
 SUN_COLOR = "FFFF0000"                                  # 일 빨강
 CENTER = Alignment(horizontal="center", vertical="center")
