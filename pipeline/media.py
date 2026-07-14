@@ -14,9 +14,9 @@ from total import (daily_frame, weekday_avg, _metrics, _metrics_from_sums, _div,
 BRAND_LOWER = {"MI": "mi", "IT": "it", "EBM": "ebm"}
 
 # 매체 시트 전용 서식 (참고파일 7월_260713 기준): 헤더·합계 size 11, 합계행 연파랑
-F_COL_M = Font(bold=True, size=11, color="FFFFFF")     # 컬럼헤더 흰글씨 11pt
+F_COL_M = Font(bold=True, size=11, color="FFFFFFFF")   # 컬럼헤더 흰글씨 11pt(불투명)
 F_SUM_M = Font(bold=True, size=11)                     # 합계행 볼드 11pt
-FILL_SUM_M = PatternFill("solid", fgColor="DDEBF7")    # 합계행 연파랑
+FILL_SUM_M = PatternFill("solid", fgColor="FFDDEBF7")  # 합계행 연파랑(불투명)
 
 # 매체 리포트 지표: (표시라벨, 지표키, 서식)  — 참고파일 순서
 # (…전환당비용 → 세션당 비용 → 회원가입율 → ROAS → 객단가), 15지표
@@ -319,13 +319,13 @@ BLOCK_W = 18   # 블록 폭 (요일+날짜+15지표=17 + 1 여백)
 
 # N검색 전용 스타일 (참고파일 7월_260713): 제목 배너, 진네이비 헤더, 밝은파랑 섹션, 9pt
 NS_F_TITLE = Font(bold=True, size=16)
-NS_FILL_TITLE = PatternFill("solid", fgColor="D9E2F3")
-NS_F_SEC = Font(bold=True, size=9, color="0070C0")
-NS_F_COL = Font(bold=True, size=9, color="FFFFFF")
-NS_FILL_COL = PatternFill("solid", fgColor="002060")
+NS_FILL_TITLE = PatternFill("solid", fgColor="FFD9E2F3")
+NS_F_SEC = Font(bold=True, size=9, color="FF0070C0")
+NS_F_COL = Font(bold=True, size=9, color="FFFFFFFF")
+NS_FILL_COL = PatternFill("solid", fgColor="FF002060")
 NS_F_SUM = Font(bold=True, size=9)
-NS_FILL_TOTAL = PatternFill("solid", fgColor="E7E6E6")   # 누적 전체합계(회색)
-NS_FILL_SUM = PatternFill("solid", fgColor="DDEBF7")     # 주간 합계(연파랑)
+NS_FILL_TOTAL = PatternFill("solid", fgColor="FFE7E6E6")   # 누적 전체합계(회색)
+NS_FILL_SUM = PatternFill("solid", fgColor="FFDDEBF7")     # 주간 합계(연파랑)
 
 
 def _ns_hdr(ws, r, c0, first):
@@ -356,6 +356,8 @@ def write_nsearch(ws, brand, df_f, y, mth):
     # 1. [광고 유형 별 누적] (세로) — 상품 라벨 B:C 병합
     _put(ws, 5, 2, "[광고 유형 별 누적]", font=NS_F_SEC)
     _put(ws, 6, 2, "상품", font=NS_F_COL, fill=NS_FILL_COL, align=CENTER)
+    _put(ws, 6, 3, "", fill=NS_FILL_COL)
+    ws.merge_cells("B6:C6")                        # 상품 헤더 B:C 병합(상품 행들과 일관)
     for i, (h, _, _) in enumerate(NS_COLS):
         _put(ws, 6, 4 + i, h, font=NS_F_COL, fill=NS_FILL_COL, align=CENTER)
     rr = 7

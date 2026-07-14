@@ -14,15 +14,16 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 BRAND_TITLE = {"MI": "미샤", "IT": "잇미샤", "EBM": "E.B.M"}
 
 # 스타일
+# 색상은 모두 불투명 8자리(FFxxxxxx): 알파 00이면 엑셀서 투명하게 렌더됨
 F_TITLE = Font(bold=True, size=14)
-F_SEC = Font(bold=True, size=12, color="1F4E78")      # 섹션 제목: 파란 글씨(채움없음)
-F_COL = Font(bold=True, size=10, color="FFFFFF")      # 컬럼헤더: 흰 글씨
+F_SEC = Font(bold=True, size=12, color="FF1F4E78")    # 섹션 제목: 파란 글씨(채움없음)
+F_COL = Font(bold=True, size=10, color="FFFFFFFF")    # 컬럼헤더: 흰 글씨
 F_SUM = Font(bold=True)
 FILL_SEC = None                                        # 섹션 제목 채움 없음
-FILL_COL = PatternFill("solid", fgColor="1F4E78")     # 컬럼헤더 네이비
-FILL_SUM = PatternFill("solid", fgColor="E7E6E6")     # 합계 음영
-SAT_COLOR = "0000FF"                                    # 토 파랑
-SUN_COLOR = "FF0000"                                    # 일 빨강
+FILL_COL = PatternFill("solid", fgColor="FF1F4E78")   # 컬럼헤더 네이비
+FILL_SUM = PatternFill("solid", fgColor="FFE7E6E6")   # 합계 음영
+SAT_COLOR = "FF0000FF"                                  # 토 파랑
+SUN_COLOR = "FFFF0000"                                  # 일 빨강
 CENTER = Alignment(horizontal="center", vertical="center")
 LEFT = Alignment(horizontal="left", vertical="center")
 
@@ -193,7 +194,7 @@ def _put(ws, r, c, v, fmt=None, font=None, fill=None, align=None, color=None):
     return cell
 
 
-_TB_SIDE = Side(style="thin", color="BFBFBF")     # 중간 회색(style.py와 동일)
+_TB_SIDE = Side(style="thin", color="FFBFBFBF")   # 중간 회색 불투명(style.py와 동일)
 TOTAL_BORDER = Border(left=_TB_SIDE, right=_TB_SIDE, top=_TB_SIDE, bottom=_TB_SIDE)
 def _merge_bc(ws, r, fill=None, font=None):
     """B:C 가로 병합 + 가운데. 필요 시 C에 색/폰트 적용해 밴드 연속."""
@@ -338,7 +339,7 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
                                sub["전환수"].sum(), sub["매출"].sum(), sub["회원가입"].sum(),
                                sub["세션수"].sum())
         wk_metrics.append(m)
-        _put(ws, r, 1, wk, align=CENTER, color="FFFFFF")      # A열 주차번호(흰글씨)
+        _put(ws, r, 1, wk, align=CENTER, color="FFFFFFFF")    # A열 주차번호(흰글씨)
         _put(ws, r, 2, f"{mth}월 {wk}주", align=CENTER)
         _merge_bc(ws, r)
         for i, k in enumerate(CUM_KEYS):
@@ -370,7 +371,7 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
     r += 1
     for _, d in daily.iterrows():
         col = SAT_COLOR if d["wd"] == 5 else SUN_COLOR if d["wd"] == 6 else None
-        _put(ws, r, 1, int(d["주차"]), align=CENTER, color="FFFFFF")   # A열 주차번호(흰글씨)
+        _put(ws, r, 1, int(d["주차"]), align=CENTER, color="FFFFFFFF")   # A열 주차번호(흰글씨)
         _put(ws, r, 2, d["요일"], align=CENTER, color=col)
         _put(ws, r, 3, d["날짜"], "yyyy-mm-dd", align=CENTER, color=col)
         for i, k in enumerate(CUM_KEYS):
