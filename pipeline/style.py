@@ -14,6 +14,11 @@ VCENTER = Alignment(vertical="center")
 BORDER_SKIP = {"●광고비집행현황"}
 
 
+def _has_border(cell):
+    b = cell.border
+    return any(s is not None and s.style for s in (b.left, b.right, b.top, b.bottom))
+
+
 def apply_global_style(book):
     for ws in book.worksheets:
         skip_border = ws.title in BORDER_SKIP
@@ -22,28 +27,41 @@ def apply_global_style(book):
                 if cell.value is None:
                     continue
                 o = cell.font
-                # 글꼴 패밀리만 통일, 볼드/크기/색 보존
-                cell.font = Font(name=FONT, size=o.size or 10, bold=o.bold,
+                # 글꼴 패밀리만 통일, 볼드/크기/색 보존 (크기 미지정 시 11 기본 → 주말셀도 평일과 동일)
+                cell.font = Font(name=FONT, size=o.size or 11, bold=o.bold,
                                  italic=o.italic, color=o.color)
                 # 정렬: 기존 수평정렬 보존 + 수직 가운데
                 a = cell.alignment
                 cell.alignment = Alignment(horizontal=a.horizontal,
                                            vertical="center", wrap_text=a.wrap_text)
-                # 제목·섹션제목(12pt 이상)·A열은 테두리 제외
-                if not skip_border and (o.size or 10) < 12 and cell.column != 1:
+                # 제목·섹션제목(12pt↑)·A열 제외 + 기존 테두리(진회색 등)는 보존
+                if (not skip_border and (o.size or 11) < 12 and cell.column != 1
+                        and not _has_border(cell)):
                     cell.border = BORDER
         if not skip_border:
             ws.sheet_view.showGridLines = False   # 테두리 있으니 격자선 숨김
         _autofit(ws)
 
 
+def _wlen(s):
+    """표시폭: 한글·CJK·가나는 2, 그 외 1 (셀너비 계산용)."""
+    w = 0
+    for ch in s:
+        if ("가" <= ch <= "힣" or "一" <= ch <= "鿿"
+                or "぀" <= ch <= "ヿ" or "＀" <= ch <= "￯"):
+            w += 2
+        else:
+            w += 1
+    return w
+
+
 def _disp_len(cell):
-    """셀 표시폭(글자수) 추정 — 숫자서식/퍼센트/날짜 반영."""
+    """셀 표시폭(글자수) 추정 — 숫자서식/퍼센트/날짜/CJK 반영."""
     v = cell.value
     if v is None:
         return 0
     if isinstance(v, str):
-        return 0 if v.startswith("=") else len(v)   # 수식은 제외
+        return 0 if v.startswith("=") else _wlen(v)   # 수식은 제외, 한글 2배폭
     fmt = cell.number_format or ""
     if isinstance(v, (int, float)):
         if "%" in fmt:
