@@ -29,8 +29,8 @@ def apply_global_style(book):
                 a = cell.alignment
                 cell.alignment = Alignment(horizontal=a.horizontal,
                                            vertical="center", wrap_text=a.wrap_text)
-                # 제목·섹션제목(12pt 이상)은 테두리 제외
-                if not skip_border and (o.size or 10) < 12:
+                # 제목·섹션제목(12pt 이상)·A열은 테두리 제외
+                if not skip_border and (o.size or 10) < 12 and cell.column != 1:
                     cell.border = BORDER
         if not skip_border:
             ws.sheet_view.showGridLines = False   # 테두리 있으니 격자선 숨김

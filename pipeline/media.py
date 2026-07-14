@@ -6,20 +6,28 @@
 """
 import warnings
 warnings.simplefilter("ignore")
+from openpyxl.styles import Font, PatternFill
 from total import (daily_frame, weekday_avg, _metrics, _metrics_from_sums, _div,
                    F_TITLE, F_SEC, F_COL, F_SUM, FILL_SEC, FILL_COL, FILL_SUM,
                    SAT_COLOR, SUN_COLOR, CENTER, LEFT, _put, BRAND_TITLE, WD_KR)
 
 BRAND_LOWER = {"MI": "mi", "IT": "it", "EBM": "ebm"}
 
-# 매체 리포트 지표: (표시라벨, 지표키, 서식)  — 참고파일 순서(회원가입율→ROAS)
+# 매체 시트 전용 서식 (참고파일 7월_260713 기준): 헤더·합계 size 11, 합계행 연파랑
+F_COL_M = Font(bold=True, size=11, color="FFFFFF")     # 컬럼헤더 흰글씨 11pt
+F_SUM_M = Font(bold=True, size=11)                     # 합계행 볼드 11pt
+FILL_SUM_M = PatternFill("solid", fgColor="DDEBF7")    # 합계행 연파랑
+
+# 매체 리포트 지표: (표시라벨, 지표키, 서식)  — 참고파일 순서
+# (…전환당비용 → 세션당 비용 → 회원가입율 → ROAS → 객단가), 15지표
 MEDIA_COLS = [
     ("노출수", "노출수", "#,##0"), ("클릭수", "클릭수", "#,##0"),
     ("클릭률", "클릭률", "0.00%"), ("클릭당비용", "클릭당비용", "#,##0"),
     ("광고비", "집행예산", "#,##0"), ("전환수", "전환수", "#,##0"),
     ("매출", "매출", "#,##0"), ("회원가입", "회원가입", "#,##0"),
     ("세션수", "세션수", "#,##0"), ("전환율", "전환율", "0.00%"),
-    ("전환당비용", "전환당비용", "#,##0"), ("회원가입율", "회원가입율", "0.00%"),
+    ("전환당비용", "전환당비용", "#,##0"), ("세션당 비용", "세션당비용", "#,##0"),
+    ("회원가입율", "회원가입율", "0.00%"),
     ("ROAS", "ROAS", "#,##0.00"), ("객단가", "객단가", "#,##0"),
 ]
 
@@ -44,17 +52,29 @@ def week_periods(daily):
     return out
 
 
-def _metric_row(ws, r, m, start_col=4):
+def _metric_row(ws, r, m, start_col=4, font=None, fill=None):
     for i, (_, key, fmt) in enumerate(MEDIA_COLS):
-        _put(ws, r, start_col + i, m.get(key, 0), fmt)
+        _put(ws, r, start_col + i, m.get(key, 0), fmt, font=font, fill=fill)
+
+
+def _sum_row(ws, r, label, m, c_val="", span_bc=False):
+    """합계/TOTAL 행: 라벨 + 지표 셀 전체 볼드+연파랑 (참고파일 방식)."""
+    _put(ws, r, 2, label, font=F_SUM_M, fill=FILL_SUM_M)
+    _put(ws, r, 3, c_val, font=F_SUM_M, fill=FILL_SUM_M)
+    if span_bc:
+        ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=3)
+    _metric_row(ws, r, m, font=F_SUM_M, fill=FILL_SUM_M)
 
 
 def _hdr(ws, r, first, second=None):
-    _put(ws, r, 2, first, font=F_COL, fill=FILL_COL, align=CENTER)
+    _put(ws, r, 2, first, font=F_COL_M, fill=FILL_COL, align=CENTER)
     if second:
-        _put(ws, r, 3, second, font=F_COL, fill=FILL_COL, align=CENTER)
+        _put(ws, r, 3, second, font=F_COL_M, fill=FILL_COL, align=CENTER)
+    else:
+        _put(ws, r, 3, "", fill=FILL_COL)          # 빈 C도 헤더색
+        ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=3)
     for i, (label, _, _) in enumerate(MEDIA_COLS):
-        _put(ws, r, 4 + i, label, font=F_COL, fill=FILL_COL, align=CENTER)
+        _put(ws, r, 4 + i, label, font=F_COL_M, fill=FILL_COL, align=CENTER)
 
 
 def write_media_single(ws, brand, title, media_disp, camp_disp, df_f, y, mth):
@@ -79,21 +99,24 @@ def write_media_single(ws, brand, title, media_disp, camp_disp, df_f, y, mth):
         _put(ws, r, 2, f"{wk}주차", align=CENTER)
         _put(ws, r, 3, periods[wk], align=CENTER)
         _metric_row(ws, r, m); r += 1
-    _put(ws, r, 2, "합계", font=F_SUM, fill=FILL_SUM)
-    _metric_row(ws, r, total); r += 2
+    _sum_row(ws, r, "합계", total); r += 2
 
-    # ■ 요일별 평균
+    # ■ 요일별 평균 (요일 라벨 B:C 병합 — 참고파일 방식)
     _put(ws, r, 2, "■ 요일별 평균", font=F_SEC, fill=FILL_SEC); r += 1
     _hdr(ws, r, "요일"); r += 1
     wrows, _, _, _ = weekday_avg(daily, y, mth)
     for wr in wrows:
         col = SAT_COLOR if wr["wd"] == 5 else SUN_COLOR if wr["wd"] == 6 else None
         _put(ws, r, 2, wr["요일"], align=CENTER, color=col)
-        # weekday_avg keys: 노출,클릭,광고비,전환,매출... 다른 키명 → 매핑
+        _put(ws, r, 3, "")
+        ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=3)
+        # weekday_avg 키명 → MEDIA_COLS 지표키 매핑
         wm = {"노출수": wr["노출"], "클릭수": wr["클릭"], "클릭률": wr["클릭율"],
               "클릭당비용": wr["클릭비용"], "집행예산": wr["광고비"], "전환수": wr["전환"],
               "매출": wr["매출"], "전환당비용": wr["전환비용"], "ROAS": wr["ROAS"],
-              "객단가": wr["객단가"], "회원가입": 0, "세션수": 0, "전환율": 0, "회원가입율": 0}
+              "객단가": wr["객단가"], "회원가입": wr["회원가입"], "세션수": wr["세션수"],
+              "전환율": wr["전환율"], "회원가입율": wr["회원가입율"],
+              "세션당비용": wr["세션당비용"]}
         _metric_row(ws, r, wm); r += 1
     r += 1
 
@@ -105,8 +128,7 @@ def write_media_single(ws, brand, title, media_disp, camp_disp, df_f, y, mth):
         _put(ws, r, 2, d["요일"], align=CENTER, color=col)
         _put(ws, r, 3, d["날짜"], "yyyy-mm-dd", align=CENTER, color=col)
         _metric_row(ws, r, d); r += 1
-    _put(ws, r, 2, "합계", font=F_SUM, fill=FILL_SUM)
-    _metric_row(ws, r, total)
+    _sum_row(ws, r, "합계", total)
 
     ws.column_dimensions["A"].width = 2
     ws.column_dimensions["B"].width = 10
@@ -132,10 +154,10 @@ def write_media_multi(ws, brand, title, media_disp, group_col, df_f, y, mth,
     _put(ws, r, 2, "■ 누적 요약 (유형별)", font=F_SEC, fill=FILL_SEC); r += 1
     hdr_label = {"캠페인": "광고유형", "광고그룹": "광고그룹", "상품유형": "상품",
                  "유형": "광고유형"}.get(group_col, "구분")
-    _put(ws, r, 2, hdr_label, font=F_COL, fill=FILL_COL, align=CENTER)
-    _put(ws, r, 3, "캠페인", font=F_COL, fill=FILL_COL, align=CENTER)
+    _put(ws, r, 2, hdr_label, font=F_COL_M, fill=FILL_COL, align=CENTER)
+    _put(ws, r, 3, "캠페인", font=F_COL_M, fill=FILL_COL, align=CENTER)
     for i, (label, _, _) in enumerate(MEDIA_COLS):
-        _put(ws, r, 4 + i, label, font=F_COL, fill=FILL_COL, align=CENTER)
+        _put(ws, r, 4 + i, label, font=F_COL_M, fill=FILL_COL, align=CENTER)
     r += 1
     # 유형별 집계 (광고비 내림차순)
     grp = []
@@ -148,8 +170,7 @@ def write_media_multi(ws, brand, title, media_disp, group_col, df_f, y, mth,
         _put(ws, r, 2, gval[:24], align=LEFT)
         _put(ws, r, 3, camp[:22], align=LEFT)
         _metric_row(ws, r, m); r += 1
-    _put(ws, r, 2, "TOTAL", font=F_SUM, fill=FILL_SUM)
-    _metric_row(ws, r, total); r += 2
+    _sum_row(ws, r, "TOTAL", total, c_val=f"{brand} 전체"); r += 2
 
     # ■ 주간현황
     _put(ws, r, 2, "■ 주간현황", font=F_SEC, fill=FILL_SEC); r += 1
@@ -162,8 +183,7 @@ def write_media_multi(ws, brand, title, media_disp, group_col, df_f, y, mth,
         _put(ws, r, 2, f"{wk}주차", align=CENTER)
         _put(ws, r, 3, periods[wk], align=CENTER)
         _metric_row(ws, r, m); r += 1
-    _put(ws, r, 2, "합계", font=F_SUM, fill=FILL_SUM)
-    _metric_row(ws, r, total); r += 2
+    _sum_row(ws, r, "합계", total); r += 2
 
     # ■ 전체 일별 성과
     _put(ws, r, 2, "■ 전체 일별 성과", font=F_SEC, fill=FILL_SEC); r += 1
@@ -173,8 +193,7 @@ def write_media_multi(ws, brand, title, media_disp, group_col, df_f, y, mth,
         _put(ws, r, 2, d["요일"], align=CENTER, color=col)
         _put(ws, r, 3, d["날짜"], "yyyy-mm-dd", align=CENTER, color=col)
         _metric_row(ws, r, d); r += 1
-    _put(ws, r, 2, "합계", font=F_SUM, fill=FILL_SUM)
-    _metric_row(ws, r, total); r += 1
+    _sum_row(ws, r, "합계", total); r += 1
 
     # ■ 유형별 일자별 (per_group_daily): 캠페인/유형마다 일자별 블록 (기타 제외)
     if per_group_daily:
@@ -193,8 +212,7 @@ def write_media_multi(ws, brand, title, media_disp, group_col, df_f, y, mth,
                 _put(ws, r, 2, d["요일"], align=CENTER, color=col)
                 _put(ws, r, 3, d["날짜"], "yyyy-mm-dd", align=CENTER, color=col)
                 _metric_row(ws, r, d); r += 1
-            _put(ws, r, 2, "합계", font=F_SUM, fill=FILL_SUM)
-            _metric_row(ws, r, _metrics(sub)); r += 1
+            _sum_row(ws, r, "합계", _metrics(sub)); r += 1
 
     ws.column_dimensions["A"].width = 2
     ws.column_dimensions["B"].width = 14
@@ -283,28 +301,49 @@ def naver_type(camp):
     return "기타"
 
 
-# ── N검색 (가로 다중블록 + PC/MO) ──
-NS_KEYS = ["노출수", "클릭수", "클릭률", "클릭당비용", "집행예산", "전환수", "매출",
-           "회원가입", "전환율", "전환당비용", "회원가입율", "ROAS", "객단가"]
-NS_HDR = ["노출수", "클릭수", "클릭률", "클릭당비용", "광고비", "전환수", "매출",
-          "회원가입", "전환율", "전환당비용", "회원가입율", "ROAS", "객단가"]
-NS_FMT = ["#,##0", "#,##0", "0.00%", "#,##0", "#,##0", "#,##0", "#,##0",
-          "#,##0", "0.00%", "#,##0", "0.00%", "#,##0.00", "#,##0"]
+# ── N검색 (가로 다중블록 + PC/MO) — 참고파일 전용 서식 ──
+# 지표 15개: 세션수가 회원가입 앞 (참고파일 quirk), 세션당 비용 포함
+NS_COLS = [
+    ("노출수", "노출수", "#,##0"), ("클릭수", "클릭수", "#,##0"),
+    ("클릭률", "클릭률", "0.00%"), ("클릭당비용", "클릭당비용", "#,##0"),
+    ("광고비", "집행예산", "#,##0"), ("전환수", "전환수", "#,##0"),
+    ("매출", "매출", "#,##0"), ("세션수", "세션수", "#,##0"),
+    ("회원가입", "회원가입", "#,##0"), ("전환율", "전환율", "0.00%"),
+    ("전환당비용", "전환당비용", "#,##0"), ("세션당 비용", "세션당비용", "#,##0"),
+    ("회원가입율", "회원가입율", "0.00%"), ("ROAS", "ROAS", "#,##0.00"),
+    ("객단가", "객단가", "#,##0"),
+]
 NS_PRODUCTS = [("전체", None), ("브랜드검색", "bsa"), ("파워링크", "cpc"),
                ("쇼핑검색", "shopping"), ("엠버서더", "Ambassador")]
-BLOCK_W = 16   # 블록 폭 (14 사용 + 2 여백)
+BLOCK_W = 18   # 블록 폭 (요일+날짜+15지표=17 + 1 여백)
+
+# N검색 전용 스타일 (참고파일 7월_260713): 제목 배너, 진네이비 헤더, 밝은파랑 섹션, 9pt
+NS_F_TITLE = Font(bold=True, size=16)
+NS_FILL_TITLE = PatternFill("solid", fgColor="D9E2F3")
+NS_F_SEC = Font(bold=True, size=9, color="0070C0")
+NS_F_COL = Font(bold=True, size=9, color="FFFFFF")
+NS_FILL_COL = PatternFill("solid", fgColor="002060")
+NS_F_SUM = Font(bold=True, size=9)
+NS_FILL_TOTAL = PatternFill("solid", fgColor="E7E6E6")   # 누적 전체합계(회색)
+NS_FILL_SUM = PatternFill("solid", fgColor="DDEBF7")     # 주간 합계(연파랑)
 
 
-def _ns_row(ws, r, c0, m, fmt_bold=False):
-    font = F_SUM if fmt_bold else None
-    fill = FILL_SUM if fmt_bold else None
-    for i, k in enumerate(NS_KEYS):
-        _put(ws, r, c0 + i, m.get(k, 0), NS_FMT[i], font=font, fill=fill)
+def _ns_hdr(ws, r, c0, first):
+    """블록 헤더행: 첫 라벨(주차/요일) + [날짜] + 15지표."""
+    _put(ws, r, c0, first, font=NS_F_COL, fill=NS_FILL_COL, align=CENTER)
+
+
+def _ns_row(ws, r, c0, m, sumrow=None):
+    """지표 15개 한 행. sumrow: None=일반 / 'gray' / 'blue'."""
+    font = NS_F_SUM if sumrow else None
+    fill = {"gray": NS_FILL_TOTAL, "blue": NS_FILL_SUM}.get(sumrow)
+    for i, (_, key, fmt) in enumerate(NS_COLS):
+        _put(ws, r, c0 + i, m.get(key, 0), fmt, font=font, fill=fill)
 
 
 def write_nsearch(ws, brand, df_f, y, mth):
     """N검색: 가로 다중블록(상품별) + PC/MO 일자별 + 상품별 주간현황."""
-    _put(ws, 2, 2, f"{BRAND_TITLE[brand]} N검색 TOTAL 리포트", font=F_TITLE)
+    _put(ws, 3, 2, f"{BRAND_TITLE[brand]} N검색 TOTAL", font=NS_F_TITLE, fill=NS_FILL_TITLE)
 
     def prod_df(pat, device=None):
         d = df_f if pat is None else df_f[df_f["캠페인"].str.contains(pat, case=False, regex=False)]
@@ -314,46 +353,54 @@ def write_nsearch(ws, brand, df_f, y, mth):
             d = d[d["캠페인"].str.contains("_mo", case=False, regex=False)]
         return d
 
-    # 1. [광고 유형 별 누적] (세로)
-    _put(ws, 5, 2, "[광고 유형 별 누적]", font=F_SEC, fill=FILL_SEC)
-    _put(ws, 6, 2, "상품", font=F_COL, fill=FILL_COL, align=CENTER)
-    for i, h in enumerate(NS_HDR):
-        _put(ws, 6, 4 + i, h, font=F_COL, fill=FILL_COL, align=CENTER)
+    # 1. [광고 유형 별 누적] (세로) — 상품 라벨 B:C 병합
+    _put(ws, 5, 2, "[광고 유형 별 누적]", font=NS_F_SEC)
+    _put(ws, 6, 2, "상품", font=NS_F_COL, fill=NS_FILL_COL, align=CENTER)
+    for i, (h, _, _) in enumerate(NS_COLS):
+        _put(ws, 6, 4 + i, h, font=NS_F_COL, fill=NS_FILL_COL, align=CENTER)
     rr = 7
     for label, pat in NS_PRODUCTS[1:]:
         _put(ws, rr, 2, label, align=LEFT)
+        _put(ws, rr, 3, "")
+        ws.merge_cells(start_row=rr, start_column=2, end_row=rr, end_column=3)
         _ns_row(ws, rr, 4, _metrics(prod_df(pat)))
         rr += 1
-    _put(ws, rr, 2, "전체 합계", font=F_SUM, fill=FILL_SUM)
-    _ns_row(ws, rr, 4, _metrics(df_f), fmt_bold=True)
+    _put(ws, rr, 2, "전체 합계", font=NS_F_SUM, fill=NS_FILL_TOTAL)
+    _put(ws, rr, 3, "", font=NS_F_SUM, fill=NS_FILL_TOTAL)
+    ws.merge_cells(start_row=rr, start_column=2, end_row=rr, end_column=3)
+    _ns_row(ws, rr, 4, _metrics(df_f), sumrow="gray")
 
     # 2. [상품별 주간 현황] (가로 블록)
-    _put(ws, 14, 2, "[상품별 주간 현황]", font=F_SEC, fill=FILL_SEC)
+    _put(ws, 14, 2, "[상품별 주간 현황]", font=NS_F_SEC)
     for p, (label, pat) in enumerate(NS_PRODUCTS):
         c0 = 2 + p * BLOCK_W
-        _put(ws, 15, c0, label, font=F_COL, fill=FILL_COL, align=CENTER)
-        _put(ws, 16, c0, "주차", font=F_COL, fill=FILL_COL, align=CENTER)
-        for i, h in enumerate(NS_HDR):
-            _put(ws, 16, c0 + 1 + i, h, font=F_COL, fill=FILL_COL, align=CENTER)
+        _put(ws, 15, c0, label, font=NS_F_SEC)
+        _ns_hdr(ws, 16, c0, "주차")
+        for i, (h, _, _) in enumerate(NS_COLS):
+            _put(ws, 16, c0 + 1 + i, h, font=NS_F_COL, fill=NS_FILL_COL, align=CENTER)
         pdaily = daily_frame(prod_df(pat), y, mth)
         for wk in range(1, 6):
             sub = pdaily[pdaily["주차"] == wk]
             m = _metrics_from_sums(sub["노출수"].sum(), sub["클릭수"].sum(), sub["집행예산"].sum(),
-                                   sub["전환수"].sum(), sub["매출"].sum(), sub["회원가입"].sum())
+                                   sub["전환수"].sum(), sub["매출"].sum(), sub["회원가입"].sum(),
+                                   sub["세션수"].sum())
             _put(ws, 16 + wk, c0, f"{mth}월 {wk}주", align=CENTER)
             _ns_row(ws, 16 + wk, c0 + 1, m)
+        # 블록 합계 (연파랑)
+        _put(ws, 22, c0, "합계", font=NS_F_SUM, fill=NS_FILL_SUM)
+        _ns_row(ws, 22, c0 + 1, _metrics(prod_df(pat)), sumrow="blue")
 
     # 3·4. [일자별 성과 · PC/MO] (가로 블록). 엠버서더는 모바일 전용 → MO에만.
     def daily_section(r0, device, products):
-        _put(ws, r0, 2, f"[일자별 성과 · {device}]", font=F_SEC, fill=FILL_SEC)
+        _put(ws, r0, 2, f"[일자별 성과 · {device}]", font=NS_F_SEC)
         for p, (label, pat) in enumerate(products):
             c0 = 2 + p * BLOCK_W
             dlabel = label if label == "엠버서더" else f"{label} {device}"
-            _put(ws, r0 + 1, c0, dlabel, font=F_COL, fill=FILL_COL, align=CENTER)
-            _put(ws, r0 + 2, c0, "요일", font=F_COL, fill=FILL_COL, align=CENTER)
-            _put(ws, r0 + 2, c0 + 1, "날짜", font=F_COL, fill=FILL_COL, align=CENTER)
-            for i, h in enumerate(NS_HDR):
-                _put(ws, r0 + 2, c0 + 2 + i, h, font=F_COL, fill=FILL_COL, align=CENTER)
+            _put(ws, r0 + 1, c0, dlabel, font=NS_F_SEC)
+            _ns_hdr(ws, r0 + 2, c0, "요일")
+            _put(ws, r0 + 2, c0 + 1, "날짜", font=NS_F_COL, fill=NS_FILL_COL, align=CENTER)
+            for i, (h, _, _) in enumerate(NS_COLS):
+                _put(ws, r0 + 2, c0 + 2 + i, h, font=NS_F_COL, fill=NS_FILL_COL, align=CENTER)
             dev = None if label == "엠버서더" else device   # 엠버서더는 기기구분 없음
             pdaily = daily_frame(prod_df(pat, dev), y, mth)
             for j, (_, d) in enumerate(pdaily.iterrows()):
@@ -361,16 +408,25 @@ def write_nsearch(ws, brand, df_f, y, mth):
                 col = SAT_COLOR if d["wd"] == 5 else SUN_COLOR if d["wd"] == 6 else None
                 _put(ws, r, c0, d["요일"], align=CENTER, color=col)
                 _put(ws, r, c0 + 1, d["날짜"], "yyyy-mm-dd", align=CENTER, color=col)
-                for i, k in enumerate(NS_KEYS):
-                    _put(ws, r, c0 + 2 + i, d.get(k, 0), NS_FMT[i])
+                for i, (_, key, fmt) in enumerate(NS_COLS):
+                    _put(ws, r, c0 + 2 + i, d.get(key, 0), fmt)
     pc_products = [x for x in NS_PRODUCTS if x[0] != "엠버서더"]   # 엠버서더 모바일전용
-    daily_section(23, "PC", pc_products)
+    daily_section(24, "PC", pc_products)
     daily_section(58, "MO", NS_PRODUCTS)
+
+    # 전 셀 9pt 통일 (제목 16pt 유지) — 볼드/색/채움 보존
+    for row in ws.iter_rows():
+        for cell in row:
+            if cell.value is None:
+                continue
+            o = cell.font
+            sz = 16 if (o.size or 0) >= 14 else 9
+            cell.font = Font(name=o.name, size=sz, bold=o.bold, color=o.color)
 
     ws.column_dimensions["A"].width = 2
     for p in range(len(NS_PRODUCTS)):
         c0 = 2 + p * BLOCK_W
-        ws.column_dimensions[ws.cell(row=1, column=c0).column_letter].width = 10
+        ws.column_dimensions[ws.cell(row=1, column=c0).column_letter].width = 9
         ws.column_dimensions[ws.cell(row=1, column=c0 + 1).column_letter].width = 11
 
 

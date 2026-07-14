@@ -140,10 +140,13 @@ def weekday_avg(daily_df, y, mth):
         imp = sub["노출수"].sum() / c; clk = sub["클릭수"].sum() / c
         cost = sub["집행예산"].sum() / c; cv = sub["전환수"].sum() / c
         rev = sub["매출"].sum() / c
+        mem = sub["회원가입"].sum() / c; sess = sub["세션수"].sum() / c
         rows.append({"요일": WD_KR[wd], "wd": wd, "노출": imp, "클릭": clk,
                      "클릭율": _div(clk, imp), "클릭비용": _div(cost, clk), "광고비": cost,
                      "전환": cv, "전환비용": _div(cost, cv), "매출": rev,
-                     "ROAS": _div(rev, cost), "객단가": _div(rev, cv)})
+                     "ROAS": _div(rev, cost), "객단가": _div(rev, cv),
+                     "회원가입": mem, "세션수": sess, "전환율": _div(cv, clk),
+                     "회원가입율": _div(mem, clk), "세션당비용": _div(cost, sess)})
     def avg(sel):
         keys = ["노출", "클릭", "광고비", "전환", "매출"]
         n = len(sel) or 1
@@ -190,6 +193,17 @@ def _put(ws, r, c, v, fmt=None, font=None, fill=None, align=None, color=None):
     return cell
 
 
+_TB_SIDE = Side(style="thin", color="D9D9D9")
+TOTAL_BORDER = Border(left=_TB_SIDE, right=_TB_SIDE, top=_TB_SIDE, bottom=_TB_SIDE)
+
+
+def _merge_bc(ws, r, fill=None, font=None):
+    """B:C 가로 병합 + 가운데. 필요 시 C에 색/폰트 적용해 밴드 연속."""
+    _put(ws, r, 3, "", font=font, fill=fill)
+    ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=3)
+    ws.cell(row=r, column=2).alignment = CENTER
+
+
 def write_total_sheet(ws, brand, df_brand, y, mth):
     """Total 대시보드 6개 섹션 작성. B열부터 시작."""
     cum_rows, total = media_cumulative(df_brand)
@@ -201,9 +215,8 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
 
     # ── 1. 매체 예산 집행율 ──
     _put(ws, r, 2, "[매체 예산 집행율]", font=F_SEC, fill=FILL_SEC)
-    _put(ws, r, 4, "vat, 마크업 포함")
     r += 1
-    for c, h in enumerate(["구분", "매체별 성과", "월예산", "집행예산", "집행율", "이슈"], start=2):
+    for c, h in enumerate(["구분", "매체별 성과", "월예산", "집행예산", "집행율", "비고"], start=2):
         _put(ws, r, c, h, font=F_COL, fill=FILL_COL, align=CENTER)
     r += 1
     tb = tc = 0.0
@@ -213,12 +226,19 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
         _put(ws, r, 4, budget, "#,##0")
         _put(ws, r, 5, m["집행예산"], "#,##0")
         _put(ws, r, 6, _div(m["집행예산"], budget), "0.00%")
+        _put(ws, r, 7, "")                        # 비고 열(테두리용 빈칸)
+        if m["집행예산"] == 0:                      # 집행 0 매체행 숨김(집행 발생 시 자동 해제)
+            ws.row_dimensions[r].hidden = True
         tb += budget; tc += m["집행예산"]
         r += 1
-    _put(ws, r, 2, "합계", font=F_SUM, fill=FILL_SUM)
+    # 합계: B:C 병합·가운데, 비고(G)도 합계색
+    _put(ws, r, 2, "합계", font=F_SUM, fill=FILL_SUM, align=CENTER)
+    _put(ws, r, 3, "", font=F_SUM, fill=FILL_SUM)
+    ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=3)
     _put(ws, r, 4, tb, "#,##0", font=F_SUM, fill=FILL_SUM)
     _put(ws, r, 5, tc, "#,##0", font=F_SUM, fill=FILL_SUM)
     _put(ws, r, 6, _div(tc, tb), "0.00%", font=F_SUM, fill=FILL_SUM)
+    _put(ws, r, 7, "", font=F_SUM, fill=FILL_SUM)
     r += 3
 
     # ── 2. 매체 총 누적 ──
@@ -235,21 +255,24 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
         for i, k in enumerate(CUM_KEYS):
             _put(ws, r, 4 + i, m[k], CUM_FMT[i])
         r += 1
-    _put(ws, r, 2, "합계", font=F_SUM, fill=FILL_SUM)
+    _put(ws, r, 2, "합계", font=F_SUM, fill=FILL_SUM, align=CENTER)
+    _put(ws, r, 3, "", font=F_SUM, fill=FILL_SUM)
+    ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=3)
     for i, k in enumerate(CUM_KEYS):
         _put(ws, r, 4 + i, total[k], CUM_FMT[i], font=F_SUM, fill=FILL_SUM)
     r += 3
 
     # ── 3. 광고 형태별 (구분 롤업) ──
     _put(ws, r, 2, "[광고 형태별]", font=F_SEC, fill=FILL_SEC)
-    _put(ws, r, 8, "어드민 전환")
     r += 1
     _put(ws, r, 2, "구분", font=F_COL, fill=FILL_COL, align=CENTER)
+    _merge_bc(ws, r, fill=FILL_COL, font=F_COL)
     for i, h in enumerate(CUM_KEYS):
         _put(ws, r, 4 + i, h, font=F_COL, fill=FILL_COL, align=CENTER)
     r += 1
     for g, m in gubun_rollup(cum_rows):
         _put(ws, r, 2, g, align=CENTER)
+        _merge_bc(ws, r)
         for i, k in enumerate(CUM_KEYS):
             _put(ws, r, 4 + i, m[k], CUM_FMT[i])
         r += 1
@@ -258,15 +281,12 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
     # ── 4. 요일별 평균 (구분: 주중/주말) ──
     _put(ws, r, 2, "[요일별 평균] 통계 기간내", font=F_SEC, fill=FILL_SEC)
     r += 1
-    _put(ws, r, 2, "구분", font=F_COL, fill=FILL_COL, align=CENTER)
-    _put(ws, r, 3, "요일", font=F_COL, fill=FILL_COL, align=CENTER)
-    _put(ws, r, 4, "Pre Click", font=F_COL, fill=FILL_COL, align=CENTER)
-    _put(ws, r, 9, "Post Click - 매출", font=F_COL, fill=FILL_COL, align=CENTER)
-    r += 1
+    r += 1                                          # (구 그룹헤더행) 비움: 텍스트·색·테두리 없음
     wa_hdr = ["평균 노출수", "평균 클릭수", "클릭율", "클릭비용", "평균광고비",
               "평균 전환수", "전환비용", "평균 매출", "ROAS", "객단가"]
     wa_key = ["노출", "클릭", "클릭율", "클릭비용", "광고비", "전환", "전환비용", "매출", "ROAS", "객단가"]
     wa_fmt = ["#,##0", "#,##0", "0.00%", "#,##0", "#,##0", "#,##0.0", "#,##0", "#,##0", "#,##0.00", "#,##0"]
+    _put(ws, r, 2, "구분", font=F_COL, fill=FILL_COL, align=CENTER)   # B57 구분(C57과 동일서식)
     _put(ws, r, 3, "요일", font=F_COL, fill=FILL_COL, align=CENTER)
     for i, h in enumerate(wa_hdr):
         _put(ws, r, 4 + i, h, font=F_COL, fill=FILL_COL, align=CENTER)
@@ -274,6 +294,7 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
     wrows, wmid, wend, wall = weekday_avg(daily, y, mth)
     groups = [("주중", wrows[0:5]), ("주말", wrows[5:7])]
     for gname, grp in groups:
+        gstart = r
         for idx, wr in enumerate(grp):
             col = SAT_COLOR if wr["wd"] == 5 else SUN_COLOR if wr["wd"] == 6 else None
             if idx == 0:
@@ -282,8 +303,16 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
             for i, k in enumerate(wa_key):
                 _put(ws, r, 4 + i, wr[k], wa_fmt[i])
             r += 1
+        # 주중(월~금)/주말(토·일) B열 세로 병합 + 가운데 + 테두리
+        if r - 1 > gstart:
+            ws.merge_cells(start_row=gstart, start_column=2, end_row=r - 1, end_column=2)
+        ws.cell(row=gstart, column=2).alignment = CENTER
+        for rr2 in range(gstart, r):                     # 병합 셀 전체 테두리
+            ws.cell(row=rr2, column=2).border = TOTAL_BORDER
     for nm, mm in [("주중 평균", wmid), ("주말 평균", wend), ("일 평균", wall)]:
-        _put(ws, r, 2, nm, font=F_SUM, fill=FILL_SUM)
+        _put(ws, r, 2, nm, font=F_SUM, fill=FILL_SUM, align=CENTER)
+        _put(ws, r, 3, "", font=F_SUM, fill=FILL_SUM)
+        ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=3)
         for i, k in enumerate(wa_key):
             _put(ws, r, 4 + i, mm[k], wa_fmt[i], font=F_SUM, fill=FILL_SUM)
         r += 1
@@ -296,6 +325,7 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
               "세션수", "회원가입", "전환율", "전환당비용", "세션당비용",
               "회원가입율", "ROAS", "객단가"]
     _put(ws, r, 2, "주간", font=F_COL, fill=FILL_COL, align=CENTER)
+    _merge_bc(ws, r, fill=FILL_COL, font=F_COL)
     for i, h in enumerate(wk_hdr):
         _put(ws, r, 4 + i, h, font=F_COL, fill=FILL_COL, align=CENTER)
     _put(ws, r, 4 + len(wk_hdr), "CAC", font=F_COL, fill=FILL_COL, align=CENTER)
@@ -307,8 +337,9 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
                                sub["전환수"].sum(), sub["매출"].sum(), sub["회원가입"].sum(),
                                sub["세션수"].sum())
         wk_metrics.append(m)
-        _put(ws, r, 1, wk, align=CENTER)                      # A열 주차번호
+        _put(ws, r, 1, wk, align=CENTER, color="FFFFFF")      # A열 주차번호(흰글씨)
         _put(ws, r, 2, f"{mth}월 {wk}주", align=CENTER)
+        _merge_bc(ws, r)
         for i, k in enumerate(CUM_KEYS):
             _put(ws, r, 4 + i, m[k], CUM_FMT[i])
         _put(ws, r, 4 + len(CUM_KEYS), _div(m["집행예산"], m["회원가입"]), "#,##0")  # CAC
@@ -316,6 +347,7 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
     # 전주 대비 증감율: 데이터 있는 마지막 두 주 비교
     active = [i for i, m in enumerate(wk_metrics) if m["집행예산"] > 0]
     _put(ws, r, 2, "전주 대비 증감율", font=F_SUM, fill=FILL_SUM)
+    _merge_bc(ws, r, fill=FILL_SUM, font=F_SUM)
     if len(active) >= 2:
         cur, prev = wk_metrics[active[-1]], wk_metrics[active[-2]]
         for i, k in enumerate(CUM_KEYS):
@@ -337,13 +369,14 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
     r += 1
     for _, d in daily.iterrows():
         col = SAT_COLOR if d["wd"] == 5 else SUN_COLOR if d["wd"] == 6 else None
-        _put(ws, r, 1, int(d["주차"]), align=CENTER)           # A열 주차번호
+        _put(ws, r, 1, int(d["주차"]), align=CENTER, color="FFFFFF")   # A열 주차번호(흰글씨)
         _put(ws, r, 2, d["요일"], align=CENTER, color=col)
         _put(ws, r, 3, d["날짜"], "yyyy-mm-dd", align=CENTER, color=col)
         for i, k in enumerate(CUM_KEYS):
             _put(ws, r, 4 + i, d[k], CUM_FMT[i])
         r += 1
-    _put(ws, r, 2, "합계", font=F_SUM, fill=FILL_SUM)
+    _put(ws, r, 2, "합계", font=F_SUM, fill=FILL_SUM, align=CENTER)
+    _merge_bc(ws, r, fill=FILL_SUM, font=F_SUM)
     for i, k in enumerate(CUM_KEYS):
         _put(ws, r, 4 + i, total[k], CUM_FMT[i], font=F_SUM, fill=FILL_SUM)
 
