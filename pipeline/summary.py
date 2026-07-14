@@ -10,14 +10,18 @@ import calendar
 from datetime import date
 from openpyxl.styles import Alignment, Border, Side, PatternFill, Font
 from total import (MEDIA_ROWS, _slice, _metrics, _put, F_TITLE, F_SEC, F_COL, F_SUM,
-                   FILL_SEC, FILL_COL, FILL_SUM, CENTER, LEFT, BRAND_TITLE)
+                   FILL_SEC, FILL_COL, FILL_SUM, CENTER, LEFT, BRAND_TITLE, budget_of)
 
-# Total [매체 예산 집행율]의 월예산(MEDIA_ROWS) → (매체, 패턴) 집행율 기준
-# 패턴 앞 '_' 정규화(_ca→ca), 데이터원 없는 _NONE_(신규매체) 제외
-BS_BUDGET = {(md, pt.lstrip("_")): bd
-             for _g, _lb, md, pt, bd in MEDIA_ROWS if md != "_NONE_"}
-# 소계 집행율 기준 = 브랜드 총예산 (Total 합계 예산과 동일: MEDIA_ROWS 월예산 총합)
-TOTAL_BUDGET = sum(bd for *_, bd in MEDIA_ROWS)
+
+def _bs_budget(brand):
+    """브랜드별 (매체, 패턴정규화) → 월예산 (예산파일 우선). _NONE_(신규매체) 제외."""
+    return {(md, pt.lstrip("_")): budget_of(brand, g, lb, bd)
+            for g, lb, md, pt, bd in MEDIA_ROWS if md != "_NONE_"}
+
+
+def _total_budget(brand):
+    """브랜드 총예산 = 전 매체 월예산 합(Total 합계 예산과 동일 기준)."""
+    return sum(budget_of(brand, g, lb, bd) for g, lb, md, pt, bd in MEDIA_ROWS)
 
 # 브랜드 종합 지표 (참고파일 순서)
 BS_KEYS = ["노출수", "클릭수", "클릭률", "클릭당비용", "집행예산", "전환수", "매출",
@@ -73,6 +77,8 @@ def write_brand_summary(ws, uni, y, mth):
     r = 7
     for b in ["MI", "EBM", "IT"]:
         dfb = uni[uni["브랜드"] == b]
+        bsb = _bs_budget(b)              # 브랜드별 매체 월예산
+        tot_bud = _total_budget(b)       # 브랜드 총예산(소계용)
         brand_start = r
         for gubun in ["성과형", "노출형"]:
             type_start = r
@@ -81,8 +87,8 @@ def write_brand_summary(ws, uni, y, mth):
                 m = _metrics(sub)
                 _put(ws, r, 4, label, align=LEFT)
                 ws.merge_cells(start_row=r, start_column=4, end_row=r, end_column=5)
-                # 집행율 = 집행예산 / 월예산(Total [매체 예산 집행율] 기준). 예산 없으면 '-'
-                bud = BS_BUDGET.get((media, pat.lstrip("_")))
+                # 집행율 = 집행예산 / 월예산(브랜드별 예산파일 기준). 예산 없으면 '-'
+                bud = bsb.get((media, pat.lstrip("_")))
                 if bud:
                     _put(ws, r, 6, m["집행예산"] / bud, "0.00%", align=CENTER)
                 else:
@@ -101,8 +107,8 @@ def write_brand_summary(ws, uni, y, mth):
         mt = _metrics(dfb)
         _put(ws, r, 2, "소계", font=F_SUM, fill=FILL_SUM, align=CENTER)
         ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=5)   # B:E 병합
-        # F: 소계 집행율 = 브랜드 총집행 / 총예산
-        _put(ws, r, 6, mt["집행예산"] / TOTAL_BUDGET, "0.00%",
+        # F: 소계 집행율 = 브랜드 총집행 / 브랜드 총예산
+        _put(ws, r, 6, (mt["집행예산"] / tot_bud) if tot_bud else "-", "0.00%",
              font=F_SUM, fill=FILL_SUM, align=CENTER)
         for i, k in enumerate(BS_KEYS):
             _put(ws, r, 7 + i, mt[k], BS_FMT[i], font=F_SUM, fill=FILL_SUM)

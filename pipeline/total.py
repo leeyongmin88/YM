@@ -10,6 +10,15 @@ import calendar
 from datetime import date, timedelta
 import pandas as pd
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from config import load_budgets
+
+# 월예산 파일(Raw/예산.xlsx) 로드. {(구분,라벨):{brand:budget}}. 없으면 {} → MEDIA_ROWS 기본값.
+BUDGETS = load_budgets()
+
+
+def budget_of(brand, gubun, label, default=0):
+    """브랜드별 월예산: 예산파일 우선, 없으면 코드 기본값(default)."""
+    return BUDGETS.get((str(gubun).strip(), str(label).strip()), {}).get(brand, default)
 
 BRAND_TITLE = {"MI": "미샤", "IT": "잇미샤", "EBM": "E.B.M"}
 
@@ -104,11 +113,12 @@ def week_in_month(d):
     return excel_weeknum2(d) - excel_weeknum2(first) + 1
 
 
-def media_cumulative(df_brand):
-    """[매체 총 누적] 각 라벨 지표 리스트 + 합계."""
+def media_cumulative(df_brand, brand):
+    """[매체 총 누적] 각 라벨 지표 리스트 + 합계. 예산=브랜드별 파일값 우선(없으면 기본)."""
     rows = []
-    for gubun, label, media, pat, budget in MEDIA_ROWS:
-        rows.append((gubun, label, budget, _metrics(_slice(df_brand, media, pat))))
+    for gubun, label, media, pat, default in MEDIA_ROWS:
+        bud = budget_of(brand, gubun, label, default)
+        rows.append((gubun, label, bud, _metrics(_slice(df_brand, media, pat))))
     return rows, _metrics(df_brand)
 
 
@@ -205,7 +215,7 @@ def _merge_bc(ws, r, fill=None, font=None):
 
 def write_total_sheet(ws, brand, df_brand, y, mth):
     """Total 대시보드 6개 섹션 작성. B열부터 시작."""
-    cum_rows, total = media_cumulative(df_brand)
+    cum_rows, total = media_cumulative(df_brand, brand)
     daily = daily_frame(df_brand, y, mth)
 
     _put(ws, 2, 2, f"- {y}년 {mth}월 -", font=F_TITLE)

@@ -38,6 +38,13 @@ $env:PYTHONIOENCODING="utf-8"
 | `summary.py` | 브랜드 종합 + 리포트 추가 요청 |
 | `style.py` | 전 시트 디자인 마감 (글꼴·테두리·병합·열너비) |
 
+## 월예산 관리 (`Raw/예산.xlsx`)
+
+매월 예산은 **`Raw/예산.xlsx`** 파일에서 관리한다 (매체 × 브랜드 표).
+- 이 파일의 `MI/EBM/IT` 예산 값만 수정 → 실행하면 **Total [매체 예산 집행율] · 브랜드 종합 집행율 · 정액 집행액**에 모두 자동 반영 (단일 소스).
+- 파일이 없으면 코드 기본값(`config.py`·`total.py`) 사용.
+- 분실 시 `pipeline/make_budget_template.py` 실행으로 현재 코드값 템플릿 재생성.
+
 ## 출력물
 
 `output/통합_리포트.xlsx` — 32시트

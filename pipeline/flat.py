@@ -31,7 +31,11 @@ def _type(camp):
 
 
 def _gubun(adgroup):
-    return "기획전" if re.search(r"(NEW|RE)_\d", str(adgroup)) else "일반"
+    # 기획전 = NEW/RE 뒤 기획전코드(숫자) 또는 기간(MMDD-MMDD) 포함. 그 외 일반.
+    s = str(adgroup)
+    if re.search(r"(NEW|RE)_\d", s) or re.search(r"\d{4}-\d{4}", s):
+        return "기획전"
+    return "일반"
 
 
 def _jimyeon(media, adgroup):
