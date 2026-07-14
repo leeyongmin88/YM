@@ -195,17 +195,6 @@ def _put(ws, r, c, v, fmt=None, font=None, fill=None, align=None, color=None):
 
 _TB_SIDE = Side(style="thin", color="D9D9D9")
 TOTAL_BORDER = Border(left=_TB_SIDE, right=_TB_SIDE, top=_TB_SIDE, bottom=_TB_SIDE)
-_GY_SIDE = Side(style="thin", color="808080")                 # 진회색(3개 표 강조용)
-GRAY_BORDER = Border(left=_GY_SIDE, right=_GY_SIDE, top=_GY_SIDE, bottom=_GY_SIDE)
-
-
-def _grid(ws, r1, r2, c1, c2, border=GRAY_BORDER):
-    """지정 범위 전 셀에 격자 테두리 적용."""
-    for rr in range(r1, r2 + 1):
-        for cc in range(c1, c2 + 1):
-            ws.cell(row=rr, column=cc).border = border
-
-
 def _merge_bc(ws, r, fill=None, font=None):
     """B:C 가로 병합 + 가운데. 필요 시 C에 색/폰트 적용해 밴드 연속."""
     _put(ws, r, 3, "", font=font, fill=fill)
@@ -253,7 +242,6 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
     # ── 2. 매체 총 누적 ──
     _put(ws, r, 2, "[매체 총 누적]", font=F_SEC, fill=FILL_SEC)
     r += 1
-    sec2_top = r
     _put(ws, r, 2, "구분", font=F_COL, fill=FILL_COL, align=CENTER)
     _put(ws, r, 3, "매체별 성과", font=F_COL, fill=FILL_COL, align=CENTER)
     for i, h in enumerate(CUM_KEYS):
@@ -272,13 +260,11 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
     ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=3)
     for i, k in enumerate(CUM_KEYS):
         _put(ws, r, 4 + i, total[k], CUM_FMT[i], font=F_SUM, fill=FILL_SUM)
-    sec2_bot = r
     r += 3
 
     # ── 3. 광고 형태별 (구분 롤업) ──
     _put(ws, r, 2, "[광고 형태별]", font=F_SEC, fill=FILL_SEC)
     r += 1
-    sec3_top = r
     _put(ws, r, 2, "구분", font=F_COL, fill=FILL_COL, align=CENTER)
     _merge_bc(ws, r, fill=FILL_COL, font=F_COL)
     for i, h in enumerate(CUM_KEYS):
@@ -290,7 +276,6 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
         for i, k in enumerate(CUM_KEYS):
             _put(ws, r, 4 + i, m[k], CUM_FMT[i])
         r += 1
-    sec3_bot = r - 1
     r += 2
 
     # ── 4. 요일별 평균 (구분: 주중/주말) ──
@@ -301,7 +286,6 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
               "평균 전환수", "전환비용", "평균 매출", "ROAS", "객단가"]
     wa_key = ["노출", "클릭", "클릭율", "클릭비용", "광고비", "전환", "전환비용", "매출", "ROAS", "객단가"]
     wa_fmt = ["#,##0", "#,##0", "0.00%", "#,##0", "#,##0", "#,##0.0", "#,##0", "#,##0", "#,##0.00", "#,##0"]
-    sec4_top = r
     _put(ws, r, 2, "구분", font=F_COL, fill=FILL_COL, align=CENTER)   # B57 구분(C57과 동일서식)
     _put(ws, r, 3, "요일", font=F_COL, fill=FILL_COL, align=CENTER)
     for i, h in enumerate(wa_hdr):
@@ -332,11 +316,7 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
         for i, k in enumerate(wa_key):
             _put(ws, r, 4 + i, mm[k], wa_fmt[i], font=F_SUM, fill=FILL_SUM)
         r += 1
-    sec4_bot = r - 1
-    # 3개 표 진회색(#808080) 격자 테두리 (apply_global_style 연회색 덮어쓰기 방지: _has_border)
-    _grid(ws, sec2_top, sec2_bot, 2, 4 + len(CUM_KEYS) - 1)      # [매체 총 누적] B~R
-    _grid(ws, sec3_top, sec3_bot, 2, 4 + len(CUM_KEYS) - 1)      # [광고 형태별] B~R
-    _grid(ws, sec4_top, sec4_bot, 2, 4 + len(wa_hdr) - 1)        # [요일별 평균] B~M
+    # (표 테두리는 apply_global_style이 전 표 동일하게 D9D9D9로 통일 적용)
     r += 2
 
     # ── 5. 주간 (주차번호 A열, CAC, 전주대비증감율) ──
