@@ -75,7 +75,8 @@ def _disp_len(cell):
 
 
 def _autofit(ws):
-    """열 너비 자동조정 (### 방지). 가로병합/제목(14pt)은 폭 계산 제외."""
+    """열 너비 자동조정 (### 방지). 가로병합/제목·섹션제목(12pt↑)은 폭 계산 제외
+    (제목류는 옆 빈칸으로 넘쳐 보이므로 열을 넓힐 필요 없음)."""
     skip = set()
     for m in ws.merged_cells.ranges:
         if m.min_col != m.max_col:                  # 가로병합: 전 셀 제외
@@ -90,7 +91,7 @@ def _autofit(ws):
         for cell in row:
             if cell.value is None or (cell.row, cell.column) in skip:
                 continue
-            if (cell.font.size or 10) >= 14:        # 제목 제외
+            if (cell.font.size or 10) >= 12:        # 제목·섹션제목 제외
                 continue
             widths[cell.column] = max(widths.get(cell.column, 0), _disp_len(cell))
     for col, L in widths.items():
