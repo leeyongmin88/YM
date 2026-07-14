@@ -5,7 +5,8 @@ wb-ss-da-dailyreport-v14 스킬을 로컬 Python 파이프라인으로 구현.
 from pathlib import Path
 
 # --- 경로 ---
-YM_ROOT = Path(r"C:\Users\admin\YM")
+# config.py는 pipeline/ 안 → 상위 폴더가 프로젝트 루트. 어디에 두든 자동 인식(이식성).
+YM_ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = YM_ROOT / "Raw"
 OUT_DIR = YM_ROOT / "output"
 SAMPLE_REPORT = YM_ROOT / "Sample_Report" / "7월_260706.xlsx"
