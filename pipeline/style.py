@@ -39,8 +39,25 @@ def apply_global_style(book):
                         and not _has_border(cell)):
                     cell.border = BORDER
         if not skip_border:
+            _box_merged(ws)                       # 병합 셀: 바깥 경계 변에만 테두리(안쪽선 제거)
             ws.sheet_view.showGridLines = False   # 테두리 있으니 격자선 숨김
         _autofit(ws)
+
+
+def _box_merged(ws, side=THIN):
+    """병합 범위마다 모든 셀을 순회하며, 각 셀이 병합의 바깥 경계에 닿는 변에만
+    테두리를 준다. 안쪽 경계선(병합 내부)은 그리지 않아 깔끔한 박스가 된다."""
+    for mr in ws.merged_cells.ranges:
+        for rr in range(mr.min_row, mr.max_row + 1):
+            for cc in range(mr.min_col, mr.max_col + 1):
+                if cc == 1:                       # A열(여백)은 테두리 제외
+                    continue
+                ws.cell(row=rr, column=cc).border = Border(
+                    left=side if cc == mr.min_col else None,
+                    right=side if cc == mr.max_col else None,
+                    top=side if rr == mr.min_row else None,
+                    bottom=side if rr == mr.max_row else None,
+                )
 
 
 def _wlen(s):
