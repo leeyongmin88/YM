@@ -427,10 +427,13 @@ def write_nsearch(ws, brand, df_f, y, mth):
             sz = 16 if (o.size or 0) >= 14 else 9
             is_label = o.color is not None and getattr(o.color, "rgb", None) == NS_LABEL_COLOR
             cell.font = Font(name=o.name, size=sz, bold=o.bold, color=o.color)
-            # 라벨(섹션제목·블록라벨): 표와 맞닿는 아래변만 테두리 (박스 제거)
-            # 아래변 지정 → apply_global_style의 _has_border 가드가 전체 테두리 덮어쓰기 방지
+            # 라벨(섹션제목·블록라벨) 테두리: 아래 칸이 '표'면 아래변만, 아래도 '라벨'이면 없음
+            # (apply_global_style은 0070C0 라벨을 자동테두리 대상서 제외함)
             if is_label:
-                cell.border = NS_LABEL_BORDER
+                below = ws.cell(cell.row + 1, cell.column)
+                below_label = (below.font.color is not None
+                               and getattr(below.font.color, "rgb", None) == NS_LABEL_COLOR)
+                cell.border = Border() if below_label else NS_LABEL_BORDER
 
     ws.column_dimensions["A"].width = 2
     for p in range(len(NS_PRODUCTS)):

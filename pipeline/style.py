@@ -34,9 +34,10 @@ def apply_global_style(book):
                 a = cell.alignment
                 cell.alignment = Alignment(horizontal=a.horizontal,
                                            vertical="center", wrap_text=a.wrap_text)
-                # 제목·섹션제목(12pt↑)·A열 제외 + 기존 테두리(진회색 등)는 보존
+                # 제목·섹션제목(12pt↑)·A열·N검색라벨(0070C0) 제외 + 기존 테두리 보존
+                is_label = o.color is not None and getattr(o.color, "rgb", None) == "FF0070C0"
                 if (not skip_border and (o.size or 11) < 12 and cell.column != 1
-                        and not _has_border(cell)):
+                        and not _has_border(cell) and not is_label):
                     cell.border = BORDER
         if not skip_border:
             _box_merged(ws)                       # 병합 셀: 바깥 경계 변에만 테두리(안쪽선 제거)
