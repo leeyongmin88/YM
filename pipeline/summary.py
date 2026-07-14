@@ -9,9 +9,13 @@ warnings.simplefilter("ignore")
 import calendar
 from datetime import date
 from openpyxl.styles import Alignment, Border, Side, PatternFill, Font
-from config import JEONGAEK
 from total import (MEDIA_ROWS, _slice, _metrics, _put, F_TITLE, F_SEC, F_COL, F_SUM,
                    FILL_SEC, FILL_COL, FILL_SUM, CENTER, LEFT, BRAND_TITLE)
+
+# Total [매체 예산 집행율]의 월예산(MEDIA_ROWS) → (매체, 패턴) 집행율 기준
+# 패턴 앞 '_' 정규화(_ca→ca), 데이터원 없는 _NONE_(신규매체) 제외
+BS_BUDGET = {(md, pt.lstrip("_")): bd
+             for _g, _lb, md, pt, bd in MEDIA_ROWS if md != "_NONE_"}
 
 # 브랜드 종합 지표 (참고파일 순서)
 BS_KEYS = ["노출수", "클릭수", "클릭률", "클릭당비용", "집행예산", "전환수", "매출",
@@ -46,16 +50,7 @@ F_BANNER = Font(name="맑은 고딕", bold=True, size=16, color="FFFFFF")
 F_BANNER_BIG = Font(name="맑은 고딕", bold=True, size=24, color="FFFFFF")
 
 
-def _rate_lookup():
-    """정액 월예산 (브랜드, bsa/amb) → 예산."""
-    d = {}
-    for camp, (brand, key, budget) in JEONGAEK.items():
-        d[(brand, "bsa" if "bsa" in camp else "amb")] = budget
-    return d
-
-
 def write_brand_summary(ws, uni, y, mth):
-    jbud = _rate_lookup()
     ncol = 6 + len(BS_KEYS)          # 마지막 데이터 열(집행율=6, 지표 7~19)
     # 상단 배너
     _put(ws, 2, 2, f"- {y}년 {mth}월 -", font=F_BANNER, fill=NAVY, align=CENTER)
@@ -84,9 +79,8 @@ def write_brand_summary(ws, uni, y, mth):
                 m = _metrics(sub)
                 _put(ws, r, 4, label, align=LEFT)
                 ws.merge_cells(start_row=r, start_column=4, end_row=r, end_column=5)
-                # 집행율 (정액만)
-                bud = jbud.get((b, "bsa")) if pat == "bsa" else \
-                    jbud.get((b, "amb")) if pat == "Ambassador" else None
+                # 집행율 = 집행예산 / 월예산(Total [매체 예산 집행율] 기준). 예산 없으면 '-'
+                bud = BS_BUDGET.get((media, pat.lstrip("_")))
                 if bud:
                     _put(ws, r, 6, m["집행예산"] / bud, "0.00%", align=CENTER)
                 else:
