@@ -62,9 +62,29 @@ MEDIA_ROWS = [
 
 # 실제 사용 매체목록·예산: 예산파일(통합매체 열 채워짐) 우선, 없으면 MEDIA_ROWS 기본값.
 # → 매체 추가는 Raw/예산.xlsx에 한 줄(구분·매체·통합매체·패턴·예산) 추가하면 자동 반영.
+def _combine_media(rows):
+    """기기분리행(라벨 ' PC'/' MO')을 base 라벨로 합침(예산 합산).
+    Total·브랜드종합은 매체 한 줄로 보이고, 정액 기기분리는 별도(config JEONGAEK)에서 처리."""
+    order, merged = [], {}
+    for gubun, label, media, pat, budgets in rows:
+        base = label
+        for suf in (" PC", " MO"):
+            if base.endswith(suf):
+                base = base[:-len(suf)].rstrip()
+                break
+        k = (gubun, base, media, pat)
+        if k in merged:
+            for br, v in budgets.items():
+                merged[k][br] = merged[k].get(br, 0) + v
+        else:
+            merged[k] = dict(budgets)
+            order.append(k)
+    return [(g, l, m, p, merged[(g, l, m, p)]) for (g, l, m, p) in order]
+
+
 _FILE_MEDIA = load_media_table()
 if _FILE_MEDIA and all(m is not None for _g, _l, m, _p, _b in _FILE_MEDIA):
-    ACTIVE_MEDIA = _FILE_MEDIA                                   # [(구분,라벨,매체,패턴,{brand:예산})]
+    ACTIVE_MEDIA = _combine_media(_FILE_MEDIA)                   # [(구분,라벨,매체,패턴,{brand:예산})]
 else:
     ACTIVE_MEDIA = [(g, l, m, p, {"MI": d, "EBM": d, "IT": d})
                     for g, l, m, p, d in MEDIA_ROWS]

@@ -90,15 +90,34 @@ _JEONGAEK_DEFAULT = {
 }
 
 
+# 정액 대상 매체: 예산파일 매체라벨(기기 접미사 제외) → 캠페인 종류
+_JEONGAEK_KINDS = {"네이버 브랜드검색": "bsa", "네이버 엠버서더형": "Ambassador"}
+
+
+def _split_device(label):
+    """라벨 끝 ' PC'/' MO' → (base, 'pc'/'mo'/''). 기기 분리 예산 지원."""
+    for suf, dev in ((" PC", "pc"), (" MO", "mo")):
+        if label.endswith(suf):
+            return label[:-len(suf)].rstrip(), dev
+    return label, ""
+
+
 def _build_jeongaek():
-    """정액 월예산: 예산파일(SA 네이버 브랜드검색/엠버서더형) 우선, 없으면 기본값.
-    → 예산파일만 수정하면 정액 집행액·집행율이 함께 반영됨(단일 소스)."""
-    bud = load_budgets()
+    """정액 월예산 {campaign:(brand,matchkey,budget)}: 예산파일에서 브랜드검색/엠버서더형 읽음.
+    라벨에 ' PC'/' MO' 있으면 캠페인에 기기태그(_pc_/_mo_) 부여 → 일자별 PC/MO 분리.
+    → 예산파일만 수정하면 정액 집행액·집행율 함께 반영. 파일 없으면 기본값."""
     out = {}
-    for camp, (brand, key, default) in _JEONGAEK_DEFAULT.items():
-        label = "네이버 브랜드검색" if "bsa" in camp else "네이버 엠버서더형"
-        out[camp] = (brand, key, bud.get(("SA", label), {}).get(brand, default))
-    return out
+    for gubun, label, media, pat, budgets in load_media_table():
+        base, dev = _split_device(label)
+        kind = _JEONGAEK_KINDS.get(base)
+        if not kind:
+            continue
+        for brand in ("MI", "EBM", "IT"):
+            devtag = f"{dev}_" if dev else ""
+            camp = f"NAV_{brand}_SA_pf_{kind}_{devtag}정액"
+            key = f"정액_{brand}_{kind}"
+            out[camp] = (brand, key, budgets.get(brand, 0))
+    return out or dict(_JEONGAEK_DEFAULT)
 
 
 JEONGAEK = _build_jeongaek()
