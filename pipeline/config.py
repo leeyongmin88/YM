@@ -9,7 +9,6 @@ from pathlib import Path
 YM_ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = YM_ROOT / "Raw"
 OUT_DIR = YM_ROOT / "output"
-SAMPLE_REPORT = YM_ROOT / "Sample_Report" / "7월_260706.xlsx"
 
 # --- 월예산 파일 (매월 사용자가 이 엑셀만 수정하면 집행율에 반영) ---
 BUDGET_FILE = RAW_DIR / "예산.xlsx"
