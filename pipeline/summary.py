@@ -9,19 +9,19 @@ warnings.simplefilter("ignore")
 import calendar
 from datetime import date
 from openpyxl.styles import Alignment, Border, Side, PatternFill, Font
-from total import (MEDIA_ROWS, _slice, _metrics, _put, F_TITLE, F_SEC, F_COL, F_SUM,
-                   FILL_SEC, FILL_COL, FILL_SUM, CENTER, LEFT, BRAND_TITLE, budget_of)
+from total import (ACTIVE_MEDIA, _slice, _metrics, _put, F_TITLE, F_SEC, F_COL, F_SUM,
+                   FILL_SEC, FILL_COL, FILL_SUM, CENTER, LEFT, BRAND_TITLE)
 
 
 def _bs_budget(brand):
-    """브랜드별 (매체, 패턴정규화) → 월예산 (예산파일 우선). _NONE_(신규매체) 제외."""
-    return {(md, pt.lstrip("_")): budget_of(brand, g, lb, bd)
-            for g, lb, md, pt, bd in MEDIA_ROWS if md != "_NONE_"}
+    """브랜드별 (매체, 패턴정규화) → 월예산 (ACTIVE_MEDIA=파일 우선). _NONE_(신규매체) 제외."""
+    return {(m, (p or "").lstrip("_")): b.get(brand, 0)
+            for g, l, m, p, b in ACTIVE_MEDIA if m != "_NONE_"}
 
 
 def _total_budget(brand):
     """브랜드 총예산 = 전 매체 월예산 합(Total 합계 예산과 동일 기준)."""
-    return sum(budget_of(brand, g, lb, bd) for g, lb, md, pt, bd in MEDIA_ROWS)
+    return sum(b.get(brand, 0) for g, l, m, p, b in ACTIVE_MEDIA)
 
 # 브랜드 종합 지표 (참고파일 순서)
 BS_KEYS = ["노출수", "클릭수", "클릭률", "클릭당비용", "집행예산", "전환수", "매출",

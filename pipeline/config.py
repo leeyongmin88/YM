@@ -15,27 +15,46 @@ SAMPLE_REPORT = YM_ROOT / "Sample_Report" / "7월_260706.xlsx"
 BUDGET_FILE = RAW_DIR / "예산.xlsx"
 
 
-def load_budgets():
-    """Raw/예산.xlsx → {(구분, 매체라벨): {"MI":, "EBM":, "IT":}}. 없으면 {} (코드 기본값 사용).
-    헤더(1행): 구분 | 매체 | MI | EBM | IT. 2행부터 데이터."""
+def _num(v):
+    try:
+        return float(v) if v not in (None, "") else 0.0
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def load_media_table():
+    """Raw/예산.xlsx → [(구분, 매체라벨, 통합매체, 패턴, {MI,EBM,IT})]. 없으면 [].
+    헤더: 구분 | 매체 | 통합매체 | 패턴 | MI | EBM | IT. (통합매체/패턴 열 있으면 매체목록도 파일이 정함)
+    → 매체 추가: 이 파일에 한 줄 추가(구분·매체·통합매체·패턴·예산)하면 리포트에 반영."""
     if not BUDGET_FILE.exists():
-        return {}
+        return []
     from openpyxl import load_workbook
-    ws = load_workbook(BUDGET_FILE, data_only=True).active
-    out = {}
-    for row in ws.iter_rows(min_row=2, values_only=True):
-        if not row or row[0] is None or row[1] is None:
+    rows = list(load_workbook(BUDGET_FILE, data_only=True).active.iter_rows(values_only=True))
+    if not rows:
+        return []
+    header = [str(c).strip() if c is not None else "" for c in rows[0]]
+    ci = {n: (header.index(n) if n in header else None)
+          for n in ("구분", "매체", "통합매체", "패턴", "MI", "EBM", "IT")}
+    out = []
+    for r in rows[1:]:
+        if not r or ci["구분"] is None or r[ci["구분"]] is None:
             continue
-        key = (str(row[0]).strip(), str(row[1]).strip())
-        vals = {}
-        for i, b in enumerate(("MI", "EBM", "IT")):
-            v = row[2 + i] if len(row) > 2 + i else None
-            try:
-                vals[b] = float(v) if v not in (None, "") else 0.0
-            except (TypeError, ValueError):
-                vals[b] = 0.0
-        out[key] = vals
+        def g(name):
+            i = ci[name]
+            return r[i] if (i is not None and i < len(r)) else None
+        media = g("통합매체")
+        out.append((
+            str(g("구분")).strip(), str(g("매체")).strip(),
+            (str(media).strip() if media is not None else None),
+            (str(g("패턴")).strip() if g("패턴") is not None else ""),
+            {b: _num(g(b)) for b in ("MI", "EBM", "IT")},
+        ))
     return out
+
+
+def load_budgets():
+    """{(구분, 매체라벨): {brand:budget}} — 정액(JEONGAEK) 예산 조회용."""
+    return {(g, l): b for g, l, m, p, b in load_media_table()}
 
 # --- 광고비 보정 계수 (스킬 공통원칙) ---
 # Meta·Google·Criteo = /0.9*1.1 , RTB·KKO = *1.1 , Naver 계열 그대로

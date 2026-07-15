@@ -10,15 +10,7 @@ import calendar
 from datetime import date, timedelta
 import pandas as pd
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from config import load_budgets
-
-# 월예산 파일(Raw/예산.xlsx) 로드. {(구분,라벨):{brand:budget}}. 없으면 {} → MEDIA_ROWS 기본값.
-BUDGETS = load_budgets()
-
-
-def budget_of(brand, gubun, label, default=0):
-    """브랜드별 월예산: 예산파일 우선, 없으면 코드 기본값(default)."""
-    return BUDGETS.get((str(gubun).strip(), str(label).strip()), {}).get(brand, default)
+from config import load_media_table
 
 BRAND_TITLE = {"MI": "미샤", "IT": "잇미샤", "EBM": "E.B.M"}
 
@@ -51,6 +43,7 @@ MEDIA_ROWS = [
     ("SA",        "네이버 키워드검색", "Naver SA", "cpc",         3_137_000),
     ("SA",        "네이버 쇼핑검색",   "Naver SA", "shopping",    2_000_000),
     ("SA",        "네이버 엠버서더형", "Naver SA", "Ambassador",  2_442_000),
+    ("SA",        "네이버 플레이스",   "Naver SA", "place",               0),
     ("SA",        "구글 키워드검색",   "Google",   "cpc",         1_500_000),
     ("DA(성과형)", "카카오 네이티브",   "KKO",      "ntv",           940_000),
     ("DA(성과형)", "카카오 비즈보드",   "KKO",      "biz",           600_000),
@@ -59,11 +52,29 @@ MEDIA_ROWS = [
     ("DA(성과형)", "크리테오",         "Criteo",   "",           17_000_000),
     ("DA(성과형)", "인스타그램 ",      "Meta",     "pf",          8_160_000),
     ("DA(성과형)", "RTB",             "RTB",      "",            2_700_000),
+    ("DA(성과형)", "네이버 스마트채널", "Naver",    "smart",               0),
+    ("DA(성과형)", "네이버 애드부스트", "Naver",    "advoost",             0),
     ("DA(성과형)", "신규 매체",        "_NONE_",   "",            3_000_000),
     ("DA(성과형)", "구글 GDN",         "Google",   "gdn",                 0),
     ("DA(노출형)", "인스타그램 ",      "Meta",     "br",          2_200_000),
     ("DA(노출형)", "구글 YouTube",     "Google",   "youtube",             0),
 ]
+
+# 실제 사용 매체목록·예산: 예산파일(통합매체 열 채워짐) 우선, 없으면 MEDIA_ROWS 기본값.
+# → 매체 추가는 Raw/예산.xlsx에 한 줄(구분·매체·통합매체·패턴·예산) 추가하면 자동 반영.
+_FILE_MEDIA = load_media_table()
+if _FILE_MEDIA and all(m is not None for _g, _l, m, _p, _b in _FILE_MEDIA):
+    ACTIVE_MEDIA = _FILE_MEDIA                                   # [(구분,라벨,매체,패턴,{brand:예산})]
+else:
+    ACTIVE_MEDIA = [(g, l, m, p, {"MI": d, "EBM": d, "IT": d})
+                    for g, l, m, p, d in MEDIA_ROWS]
+_BUD_LOOKUP = {(str(g).strip(), str(l).strip()): b for g, l, m, p, b in ACTIVE_MEDIA}
+
+
+def budget_of(brand, gubun, label, default=0):
+    """브랜드별 월예산: 예산파일 우선, 없으면 기본값."""
+    return _BUD_LOOKUP.get((str(gubun).strip(), str(label).strip()), {}).get(brand, default)
+
 
 CUM_HDR = ["노출수", "클릭수", "클릭률", "클릭당비용", "집행예산", "전환수", "매출",
            "회원가입", "전환율", "전환당비용", "회원가입율", "ROAS", "객단가"]
@@ -114,11 +125,11 @@ def week_in_month(d):
 
 
 def media_cumulative(df_brand, brand):
-    """[매체 총 누적] 각 라벨 지표 리스트 + 합계. 예산=브랜드별 파일값 우선(없으면 기본)."""
+    """[매체 총 누적] 각 라벨 지표 리스트 + 합계. 매체목록·예산 = ACTIVE_MEDIA(파일 우선)."""
     rows = []
-    for gubun, label, media, pat, default in MEDIA_ROWS:
-        bud = budget_of(brand, gubun, label, default)
-        rows.append((gubun, label, bud, _metrics(_slice(df_brand, media, pat))))
+    for gubun, label, media, pat, budgets in ACTIVE_MEDIA:
+        rows.append((gubun, label, budgets.get(brand, 0),
+                     _metrics(_slice(df_brand, media, pat))))
     return rows, _metrics(df_brand)
 
 

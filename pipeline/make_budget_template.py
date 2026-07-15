@@ -30,25 +30,24 @@ side = Side(style="thin", color="FFBFBFBF")
 box = Border(left=side, right=side, top=side, bottom=side)
 ctr = Alignment(horizontal="center", vertical="center")
 
-for c, h in enumerate(["구분", "매체", "MI", "EBM", "IT"], 1):
+for c, h in enumerate(["구분", "매체", "통합매체", "패턴", "MI", "EBM", "IT"], 1):
     cell = ws.cell(1, c, h); cell.font = hfont; cell.fill = navy; cell.alignment = ctr
 
 r = 2
 for gubun, label, media, pat, default in MEDIA_ROWS:
     v = brand_vals(label, default)
     ws.cell(r, 1, gubun); ws.cell(r, 2, label.strip())
-    ws.cell(r, 3, v["MI"]); ws.cell(r, 4, v["EBM"]); ws.cell(r, 5, v["IT"])
-    for c in (3, 4, 5):
+    ws.cell(r, 3, media); ws.cell(r, 4, pat)
+    ws.cell(r, 5, v["MI"]); ws.cell(r, 6, v["EBM"]); ws.cell(r, 7, v["IT"])
+    for c in (5, 6, 7):
         ws.cell(r, c).number_format = "#,##0"
     r += 1
 
 for rr in range(1, r):
-    for cc in range(1, 6):
+    for cc in range(1, 8):
         ws.cell(rr, cc).border = box
-ws.column_dimensions["A"].width = 12
-ws.column_dimensions["B"].width = 18
-for L in ("C", "D", "E"):
-    ws.column_dimensions[L].width = 13
+for L, wd in [("A", 12), ("B", 18), ("C", 12), ("D", 12), ("E", 13), ("F", 13), ("G", 13)]:
+    ws.column_dimensions[L].width = wd
 ws.sheet_view.showGridLines = False
 
 wb.save(BUDGET_FILE)
