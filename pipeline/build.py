@@ -55,6 +55,9 @@ def save_excel(df, path, y=2026, mth=7):
         from summary import write_brand_summary, write_report_request
         write_brand_summary(xw.book.create_sheet("브랜드 종합"), df, y, mth)
         write_report_request(xw.book.create_sheet("리포트 추가 요청"), df, y, mth)
+        # 미맵핑 GA 점검 (매칭 안 되는 GA 원본 + 사유)
+        from mapping import write_mapping_sheets
+        write_mapping_sheets(xw.book, y, mth)
         # 전체 디자인 마감 (글꼴·테두리 통일)
         from style import apply_global_style
         apply_global_style(xw.book)
@@ -67,7 +70,8 @@ def _reorder_by_brand(book):
     brand_order = ["MI", "EBM", "IT"]
     suffix_order = ["Total", "N검색", "구글SA", "피맥스_리포트", "K디스", "크리테오",
                     "RTB", "메타_성과형", "메타_브랜딩형", "N디스"]
-    desired = (["통합", "리포트 추가 요청", "●광고비집행현황", "브랜드 종합", "통합_캠페인일자별"]
+    desired = (["통합", "리포트 추가 요청", "●광고비집행현황", "브랜드 종합", "통합_캠페인일자별",
+                "미맵핑_분류", "미맵핑_광고매출", "미맵핑_광고가입", "미맵핑_NaverSA"]
                + [f"{b}_{s}" for b in brand_order for s in suffix_order])
     existing = {ws.title: ws for ws in book.worksheets}
     ordered = [existing[t] for t in desired if t in existing]
