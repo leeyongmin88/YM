@@ -349,10 +349,13 @@ def write_nsearch(ws, brand, df_f, y, mth):
 
     def prod_df(pat, device=None):
         d = df_f if pat is None else df_f[df_f["캠페인"].str.contains(pat, case=False, regex=False)]
+        # 정액(브랜드검색·엠버서더 고정비)은 기기(_pc/_mo) 태그가 없음.
+        # 일자별 집행이 누락되지 않게 PC 블록에 포함(MO에선 제외→중복 방지).
+        jeong = d["캠페인"].str.contains("정액", regex=False)
         if device == "PC":
-            d = d[d["캠페인"].str.contains("_pc", case=False, regex=False)]
+            d = d[d["캠페인"].str.contains("_pc", case=False, regex=False) | jeong]
         elif device == "MO":
-            d = d[d["캠페인"].str.contains("_mo", case=False, regex=False)]
+            d = d[d["캠페인"].str.contains("_mo", case=False, regex=False) & ~jeong]
         return d
 
     # 1. [광고 유형 별 누적] (세로) — 상품 라벨 B:C 병합
