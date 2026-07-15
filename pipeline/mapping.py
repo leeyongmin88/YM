@@ -134,3 +134,7 @@ def write_mapping_sheets(book, y, mth):
     nsa_fmt = [None, None, None, None, "#,##0", "#,##0", "#,##0", None]
     _table(book.create_sheet("미맵핑_NaverSA"),
            "■ 미맵핑 GA 원본 · 네이버SA", nsa_hdr, nsa_rows, nsa_fmt)
+
+    # 미맵핑 시트는 점검용 → 숨김 처리(파일엔 있으나 탭 미표시)
+    for name in ("미맵핑_분류", "미맵핑_광고매출", "미맵핑_광고가입", "미맵핑_NaverSA"):
+        book[name].sheet_state = "hidden"
