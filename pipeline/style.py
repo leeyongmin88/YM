@@ -111,7 +111,10 @@ def _autofit(ws):
                 continue
             if (cell.font.size or 10) >= 12:        # 제목·섹션제목 제외
                 continue
-            widths[cell.column] = max(widths.get(cell.column, 0), _disp_len(cell))
+            L = _disp_len(cell)
+            if cell.alignment and cell.alignment.wrap_text:
+                L = min(L, 22)                      # 줄바꿈 셀: 폭 제한(길면 여러 줄로)
+            widths[cell.column] = max(widths.get(cell.column, 0), L)
     for col, L in widths.items():
         letter = ws.cell(row=1, column=col).column_letter
         ws.column_dimensions[letter].width = min(max(L * 1.2 + 2, 6), 40)

@@ -6,7 +6,9 @@
 """
 import warnings
 warnings.simplefilter("ignore")
-from openpyxl.styles import Font, PatternFill, Border, Side
+from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
+
+LEFT_WRAP = Alignment(horizontal="left", vertical="center", wrap_text=True)  # 긴 유형 라벨 줄바꿈
 from total import (daily_frame, weekday_avg, _metrics, _metrics_from_sums, _div,
                    F_TITLE, F_SEC, F_COL, F_SUM, FILL_SEC, FILL_COL, FILL_SUM,
                    SAT_COLOR, SUN_COLOR, CENTER, LEFT, _put, BRAND_TITLE, WD_KR)
@@ -167,8 +169,8 @@ def write_media_multi(ws, brand, title, media_disp, group_col, df_f, y, mth,
     for gval, sub in grp:
         m = _metrics(sub)
         camp = sub["캠페인"].iloc[0] if len(sub) else ""
-        _put(ws, r, 2, gval[:24], align=LEFT)
-        _put(ws, r, 3, camp[:22], align=LEFT)
+        _put(ws, r, 2, gval, align=LEFT_WRAP)   # 유형 라벨 전체(길면 줄바꿈)
+        _put(ws, r, 3, camp, align=LEFT)
         _metric_row(ws, r, m); r += 1
     _sum_row(ws, r, "TOTAL", total, c_val=f"{brand} 전체"); r += 2
 
