@@ -403,7 +403,6 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
 
     # ── 6. 일자별 성과 (주차번호 A열, 1일~월말, 주말색) ──
     _put(ws, r, 2, "[일자별 성과]", font=F_SEC, fill=FILL_SEC)
-    _put(ws, r, 8, "어드민 전환")
     r += 1
     _put(ws, r, 2, "요일", font=F_COL, fill=FILL_COL, align=CENTER)
     _put(ws, r, 3, "날짜", font=F_COL, fill=FILL_COL, align=CENTER)
