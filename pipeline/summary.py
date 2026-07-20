@@ -135,7 +135,7 @@ SUBTYPES = [
     ("KAKAO Bizboard", "KKO", "biz"), ("KAKAO Native", "KKO", "ntv"),
     ("KAKAO Catalog", "KKO", "ca"),
     ("Criteo", "Criteo", ""), ("RTB House", "RTB", ""),
-    ("Instagram_성과형", "Meta", "pf"), ("Instagram_노출형(br)", "Meta", "br"),
+    ("Instagram_성과형", "Meta", "pf"), ("Instagram_노출형(브랜딩)", "Meta", "br"),
 ]
 
 
@@ -178,7 +178,7 @@ def write_report_request(ws, uni, y, mth):
         ws.merge_cells(start_row=start, start_column=2, end_row=r - 1, end_column=2)
         for rr in range(start, r):
             ws.cell(rr, 2).border = box
-        cell = ws.cell(start, 2, b)
+        cell = ws.cell(start, 2, BRAND_TITLE.get(b, b))   # MI→미샤·IT→잇미샤·EBM→E.B.M, 전체 유지
         cell.font = F_SUM
         cell.alignment = center_v
 
