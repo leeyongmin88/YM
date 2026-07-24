@@ -127,13 +127,13 @@ def write_brand_summary(ws, uni, y, mth):
 
 # 리포트 추가 요청: 매체 세부 16종 (6월F 순서). 모든 브랜드에 전 매체 행 표시.
 SUBTYPES = [
-    ("Google Pmax", "Google", "pmax"), ("Google Keyword", "Google", "cpc"),
+    ("Google Pmax", "Google", "pmax"), ("Google Keyword SA", "Google", "cpc"),
     ("Naver Brand SA", "Naver SA", "bsa"), ("Naver Keyword SA", "Naver SA", "cpc"),
     ("Naver Shopping SA", "Naver SA", "shopping"), ("Naver Place SA", "Naver SA", "place"),
-    ("Naver Ambassador", "Naver SA", "Ambassador"),
-    ("Naver DA_Smart", "Naver", "smart"), ("Naver DA_ADVoost", "Naver", "advoost"),
+    ("Naver Ambassador SA", "Naver SA", "Ambassador"),
+    ("Naver DA_SmartChannel", "Naver", "smart"), ("Naver DA_ADVoost", "Naver", "advoost"),
     ("KAKAO Bizboard", "KKO", "biz"), ("KAKAO Native", "KKO", "ntv"),
-    ("KAKAO Catalog", "KKO", "ca"),
+    ("Kakao Catalog", "KKO", "ca"),
     ("Criteo", "Criteo", ""), ("RTB House", "RTB", ""),
     ("Instagram_성과형", "Meta", "pf"), ("Instagram_노출형(브랜딩)", "Meta", "br"),
 ]
