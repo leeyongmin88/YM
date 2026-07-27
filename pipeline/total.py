@@ -96,6 +96,22 @@ def budget_of(brand, gubun, label, default=0):
     return _BUD_LOOKUP.get((str(gubun).strip(), str(label).strip()), {}).get(brand, default)
 
 
+# 매체 상세시트의 '총 광고비(집행예산)' 셀 주소 등록소.
+# key=(brand, media, pattern) → "'시트명'!H14" 형태 식조각. 매체시트가 먼저 생성되며
+# 이 표를 채우고, write_total_sheet의 [매체 예산 집행율]이 참조식으로 사용한다.
+COST_CELL = {}
+
+
+def reg_cost_cell(brand, media, pat, ref):
+    """상세시트 광고비 합계셀 등록. ref='시트명'!H14 (따옴표 포함 권장)."""
+    COST_CELL[(brand, str(media), str(pat))] = ref
+
+
+def cost_cell_ref(brand, media, pat):
+    """등록된 참조식 조각 반환(없으면 None)."""
+    return COST_CELL.get((brand, str(media), str(pat)))
+
+
 CUM_HDR = ["노출수", "클릭수", "클릭률", "클릭당비용", "집행예산", "전환수", "매출",
            "회원가입", "전환율", "전환당비용", "회원가입율", "ROAS", "객단가"]
 WD_KR = ["월", "화", "수", "목", "금", "토", "일"]
@@ -148,7 +164,7 @@ def media_cumulative(df_brand, brand):
     """[매체 총 누적] 각 라벨 지표 리스트 + 합계. 매체목록·예산 = ACTIVE_MEDIA(파일 우선)."""
     rows = []
     for gubun, label, media, pat, budgets in ACTIVE_MEDIA:
-        rows.append((gubun, label, budgets.get(brand, 0),
+        rows.append((gubun, label, media, pat, budgets.get(brand, 0),
                      _metrics(_slice(df_brand, media, pat))))
     return rows, _metrics(df_brand)
 
@@ -157,7 +173,7 @@ def gubun_rollup(cum_rows):
     """구분(SA/DA성과형/DA노출형)별 지표 롤업."""
     order = ["SA", "DA(성과형)", "DA(노출형)"]
     acc = {g: dict(노출수=0, 클릭수=0, 집행예산=0, 전환수=0, 매출=0, 회원가입=0, 세션수=0) for g in order}
-    for gubun, label, budget, m in cum_rows:
+    for gubun, label, media, pat, budget, m in cum_rows:
         a = acc[gubun]
         for k in a:
             a[k] += m[k]
@@ -260,12 +276,14 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
         _put(ws, r, c, h, font=F_COL, fill=FILL_COL, align=CENTER)
     r += 1
     tb = tc = 0.0
-    for gubun, label, budget, m in cum_rows:
+    efirst = r                                    # 집행예산 데이터 첫 행(합계 SUM용)
+    for gubun, label, media, pat, budget, m in cum_rows:
         _put(ws, r, 2, gubun, align=CENTER)
         _put(ws, r, 3, label, align=LEFT)
         _put(ws, r, 4, budget, "#,##0")
-        _put(ws, r, 5, m["집행예산"], "#,##0")
-        _put(ws, r, 6, _div(m["집행예산"], budget), "0.00%")
+        ref = cost_cell_ref(brand, media, pat)    # 상세시트 광고비 합계셀 참조식(없으면 계산값)
+        _put(ws, r, 5, f"={ref}" if ref else m["집행예산"], "#,##0")
+        _put(ws, r, 6, f"=IFERROR(E{r}/D{r},0)", "0.00%")   # 집행율 = 집행예산/월예산
         _put(ws, r, 7, "")                        # 비고 열(테두리용 빈칸)
         if m["집행예산"] == 0:                      # 집행 0 매체행 숨김(집행 발생 시 자동 해제)
             ws.row_dimensions[r].hidden = True
@@ -276,8 +294,8 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
     _put(ws, r, 3, "", font=F_SUM, fill=FILL_SUM)
     ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=3)
     _put(ws, r, 4, tb, "#,##0", font=F_SUM, fill=FILL_SUM)
-    _put(ws, r, 5, tc, "#,##0", font=F_SUM, fill=FILL_SUM)
-    _put(ws, r, 6, _div(tc, tb), "0.00%", font=F_SUM, fill=FILL_SUM)
+    _put(ws, r, 5, f"=SUM(E{efirst}:E{r - 1})", "#,##0", font=F_SUM, fill=FILL_SUM)
+    _put(ws, r, 6, f"=IFERROR(E{r}/D{r},0)", "0.00%", font=F_SUM, fill=FILL_SUM)
     _put(ws, r, 7, "", font=F_SUM, fill=FILL_SUM)
     r += 3
 
@@ -289,7 +307,7 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
     for i, h in enumerate(CUM_KEYS):
         _put(ws, r, 4 + i, h, font=F_COL, fill=FILL_COL, align=CENTER)
     r += 1
-    for gubun, label, budget, m in cum_rows:
+    for gubun, label, media, pat, budget, m in cum_rows:
         _put(ws, r, 2, gubun, align=CENTER)
         _put(ws, r, 3, label, align=LEFT)
         for i, k in enumerate(CUM_KEYS):

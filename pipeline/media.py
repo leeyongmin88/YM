@@ -12,7 +12,8 @@ from openpyxl.utils import get_column_letter
 LEFT_WRAP = Alignment(horizontal="left", vertical="center", wrap_text=True)  # 긴 유형 라벨 줄바꿈
 from total import (daily_frame, weekday_avg, _metrics, _metrics_from_sums, _div,
                    F_TITLE, F_SEC, F_COL, F_SUM, FILL_SEC, FILL_COL, FILL_SUM,
-                   SAT_COLOR, SUN_COLOR, CENTER, LEFT, _put, BRAND_TITLE, WD_KR)
+                   SAT_COLOR, SUN_COLOR, CENTER, LEFT, _put, BRAND_TITLE, WD_KR,
+                   reg_cost_cell)
 
 BRAND_LOWER = {"MI": "mi", "IT": "it", "EBM": "ebm"}
 
@@ -194,13 +195,15 @@ def write_media_multi(ws, brand, title, media_disp, group_col, df_f, y, mth,
         grp.append((str(gval), sub))
     grp.sort(key=lambda x: -x[1]["광고비용"].sum())
     tfirst = r
+    row_of = {}                                 # 유형라벨 → 누적요약 광고비셀 행
     for gval, sub in grp:
         m = _metrics(sub)
         camp = sub["캠페인"].iloc[0] if len(sub) else ""
         _put(ws, r, 2, gval, align=LEFT_WRAP)   # 유형 라벨 전체(길면 줄바꿈)
         _put(ws, r, 3, camp, align=LEFT)
-        _metric_row(ws, r, m); r += 1
-    _sum_row_f(ws, r, "TOTAL", tfirst, r - 1, c_val=f"{brand} 전체"); r += 2
+        _metric_row(ws, r, m); row_of[gval] = r; r += 1
+    _sum_row_f(ws, r, "TOTAL", tfirst, r - 1, c_val=f"{brand} 전체")
+    row_of["__TOTAL__"] = r; r += 2
 
     # ■ 주간현황
     _put(ws, r, 2, "■ 주간현황", font=F_SEC, fill=FILL_SEC); r += 1
@@ -252,6 +255,7 @@ def write_media_multi(ws, brand, title, media_disp, group_col, df_f, y, mth,
     ws.column_dimensions["C"].width = 18
     for c in range(4, 4 + len(MEDIA_COLS)):
         ws.column_dimensions[ws.cell(row=1, column=c).column_letter].width = 12
+    return row_of                               # {유형라벨/__TOTAL__ : 광고비셀 행}
 
 
 # 다중유형 시트(광고그룹별, 유형별일자별 포함): (접미사, 제목, 매체표시, 매체, 패턴, 그룹컬럼, 대상브랜드)
@@ -268,19 +272,33 @@ SINGLE_SHEETS = [
 ]
 
 
+# 매체 광고비(집행예산) 열 = H. 상세시트→[매체 예산 집행율] 참조식 등록용.
+_COST_COL = "H"
+# 유형파생 시트: suffix → (예산매체, 유형라벨→예산패턴  or  None=매체전체 TOTAL 1건)
+_TYPED_REG = {
+    "크리테오": ("Criteo", None),
+    "K디스": ("KKO", {"네이티브": "ntv", "비즈보드": "biz", "카탈로그": "_ca"}),
+    "N디스": ("Naver", {"스마트채널": "smart", "애드부스트": "advoost"}),
+}
+# N검색 상품블록 누적셀(H7~H10) → 예산패턴
+_NS_REG = {"bsa": 7, "cpc": 8, "shopping": 9, "Ambassador": 10}
+
+
 def add_media_sheets(book, uni, y, mth):
     for suffix, title_t, mdisp, camp_t, media, pat, brands in SINGLE_SHEETS:
         for b in brands:
             df_f = _filter(uni, b, media, pat)
-            ws = book.create_sheet(f"{b}_{suffix}")
-            write_media_single(ws, b, title_t.format(T=BRAND_TITLE[b]), mdisp,
-                               camp_t.format(B=b), df_f, y, mth)
+            sheet = f"{b}_{suffix}"
+            write_media_single(book.create_sheet(sheet), b, title_t.format(T=BRAND_TITLE[b]),
+                               mdisp, camp_t.format(B=b), df_f, y, mth)
+            reg_cost_cell(b, media, pat, f"'{sheet}'!{_COST_COL}14")   # 주간현황 합계셀
     for suffix, title_t, mdisp, media, pat, gcol, brands in MULTI_SHEETS:
         for b in brands:
             df_f = _filter(uni, b, media, pat)
-            ws = book.create_sheet(f"{b}_{suffix}")
-            write_media_multi(ws, b, title_t.format(T=BRAND_TITLE[b]), mdisp, gcol, df_f, y, mth,
-                              per_group_daily=True)
+            sheet = f"{b}_{suffix}"
+            rows = write_media_multi(book.create_sheet(sheet), b, title_t.format(T=BRAND_TITLE[b]),
+                                     mdisp, gcol, df_f, y, mth, per_group_daily=True)
+            reg_cost_cell(b, media, pat, f"'{sheet}'!{_COST_COL}{rows['__TOTAL__']}")
     # 유형별 파생그룹 시트 (유형별 일자별 블록 포함): (접미사,제목,매체표시,매체,유형함수,대상브랜드)
     typed = [
         ("크리테오", "{T} 크리테오 리포트", "criteo", "Criteo", criteo_type, ["MI", "IT", "EBM"]),
@@ -288,24 +306,34 @@ def add_media_sheets(book, uni, y, mth):
         ("N디스", "{T} 네이버 디스플레이 리포트", "naver", "Naver", naver_type, ["IT"]),
     ]
     for suffix, title_t, mdisp, media, tfn, brands in typed:
+        regmedia, lab2pat = _TYPED_REG[suffix]
         for b in brands:
             df_f = _filter(uni, b, media, "").copy()
             df_f["유형"] = df_f["캠페인"].map(tfn)
-            ws = book.create_sheet(f"{b}_{suffix}")
-            write_media_multi(ws, b, title_t.format(T=BRAND_TITLE[b]), mdisp, "유형",
-                              df_f, y, mth, per_group_daily=True)
+            sheet = f"{b}_{suffix}"
+            rows = write_media_multi(book.create_sheet(sheet), b, title_t.format(T=BRAND_TITLE[b]),
+                                     mdisp, "유형", df_f, y, mth, per_group_daily=True)
+            if lab2pat is None:                        # 매체전체 1건(크리테오) → TOTAL 참조
+                reg_cost_cell(b, regmedia, "", f"'{sheet}'!{_COST_COL}{rows['__TOTAL__']}")
+            else:                                       # 유형별 → 각 누적요약행 참조
+                for lab, pat in lab2pat.items():
+                    if lab in rows:
+                        reg_cost_cell(b, regmedia, pat, f"'{sheet}'!{_COST_COL}{rows[lab]}")
     # 메타 성과형 (광고그룹×catalog소재/나머지 세분)
     for b in ["MI", "IT", "EBM"]:
         df_f = _filter(uni, b, "Meta", "pf").copy()
         df_f["유형"] = df_f.apply(lambda r: meta_perf_label(r["광고그룹"], r["광고(소재)"]), axis=1)
-        ws = book.create_sheet(f"{b}_메타_성과형")
-        write_media_multi(ws, b, f"{BRAND_TITLE[b]} 메타 성과형(pf) 리포트", "meta", "유형",
-                          df_f, y, mth, per_group_daily=True)
+        sheet = f"{b}_메타_성과형"
+        rows = write_media_multi(book.create_sheet(sheet), b, f"{BRAND_TITLE[b]} 메타 성과형(pf) 리포트",
+                                 "meta", "유형", df_f, y, mth, per_group_daily=True)
+        reg_cost_cell(b, "Meta", "pf", f"'{sheet}'!{_COST_COL}{rows['__TOTAL__']}")
     # N검색 (가로 다중블록 + PC/MO)
     for b in ["MI", "IT", "EBM"]:
         df_f = _filter(uni, b, "Naver SA", "")
-        ws = book.create_sheet(f"{b}_N검색")
-        write_nsearch(ws, b, df_f, y, mth)
+        sheet = f"{b}_N검색"
+        write_nsearch(book.create_sheet(sheet), b, df_f, y, mth)
+        for pat, rr in _NS_REG.items():           # 상품별 누적셀(H7~H10) 참조 등록
+            reg_cost_cell(b, "Naver SA", pat, f"'{sheet}'!{_COST_COL}{rr}")
 
 
 def criteo_type(camp):

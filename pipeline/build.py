@@ -38,13 +38,13 @@ def save_excel(df, path, y=2026, mth=7):
         # 날짜열(A) 형식 yyyy-mm-dd (시간 제거)
         for row in range(2, len(df) + 2):
             ws.cell(row=row, column=1).number_format = "yyyy-mm-dd"
-        # Total 대시보드 3개 브랜드
+        # 매체별 상세 리포트 (Total보다 먼저 → 광고비 합계셀 등록소 채움)
+        from media import add_media_sheets
+        add_media_sheets(xw.book, df, y, mth)
+        # Total 대시보드 3개 브랜드 (등록된 셀 참조식 사용)
         for brand in ["MI", "IT", "EBM"]:
             wsb = xw.book.create_sheet(f"{brand}_Total")
             write_total_sheet(wsb, brand, df[df["브랜드"] == brand], y, mth)
-        # 매체별 상세 리포트
-        from media import add_media_sheets
-        add_media_sheets(xw.book, df, y, mth)
         # ●광고비집행현황
         from exec_report import write_exec_report
         write_exec_report(xw.book.create_sheet("●광고비집행현황"), df, y, mth)
