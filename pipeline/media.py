@@ -69,6 +69,30 @@ def _sum_row(ws, r, label, m, c_val="", span_bc=False):
     _metric_row(ws, r, m, font=F_SUM_M, fill=FILL_SUM_M)
 
 
+# MEDIA_COLS(지표 col=4+idx): 절대지표=SUM, 비율지표={idx:(분자idx,분모idx)}
+_MC_SUM = (0, 1, 4, 5, 6, 7, 8)                        # 노출·클릭·광고비·전환·매출·회원·세션
+_MC_RATIO = {2: (1, 0), 3: (4, 1), 9: (5, 1), 10: (4, 5),
+             11: (4, 8), 12: (7, 1), 13: (6, 4), 14: (6, 5)}
+
+
+def _sum_row_f(ws, sr, label, first, last, c_val="", span_bc=False):
+    """합계행을 '식'으로: 절대=SUM(first:last), 비율=합계행 셀 참조식. N검색과 동일 방식."""
+    _put(ws, sr, 2, label, font=F_SUM_M, fill=FILL_SUM_M)
+    _put(ws, sr, 3, c_val, font=F_SUM_M, fill=FILL_SUM_M)
+    if span_bc:
+        ws.merge_cells(start_row=sr, start_column=2, end_row=sr, end_column=3)
+
+    def L(idx):
+        return get_column_letter(4 + idx)
+    for idx, (_, _, fmt) in enumerate(MEDIA_COLS):
+        if idx in _MC_SUM:
+            f = f"=SUM({L(idx)}{first}:{L(idx)}{last})"
+        else:
+            num, den = _MC_RATIO[idx]
+            f = f"=IFERROR({L(num)}{sr}/{L(den)}{sr},0)"
+        _put(ws, sr, 4 + idx, f, fmt, font=F_SUM_M, fill=FILL_SUM_M)
+
+
 def _hdr(ws, r, first, second=None):
     _put(ws, r, 2, first, font=F_COL_M, fill=FILL_COL, align=CENTER)
     if second:
@@ -94,6 +118,7 @@ def write_media_single(ws, brand, title, media_disp, camp_disp, df_f, y, mth):
     # ■ 주간현황
     _put(ws, r, 2, "■ 주간현황", font=F_SEC, fill=FILL_SEC); r += 1
     _hdr(ws, r, "주차", "기간"); r += 1
+    wfirst = r
     for wk in range(1, 6):
         sub = daily[daily["주차"] == wk]
         m = _metrics_from_sums(sub["노출수"].sum(), sub["클릭수"].sum(), sub["집행예산"].sum(),
@@ -102,7 +127,7 @@ def write_media_single(ws, brand, title, media_disp, camp_disp, df_f, y, mth):
         _put(ws, r, 2, f"{wk}주차", align=CENTER)
         _put(ws, r, 3, periods[wk], align=CENTER)
         _metric_row(ws, r, m); r += 1
-    _sum_row(ws, r, "합계", total); r += 2
+    _sum_row_f(ws, r, "합계", wfirst, r - 1); r += 2
 
     # ■ 요일별 평균 (요일 라벨 B:C 병합 — 참고파일 방식)
     _put(ws, r, 2, "■ 요일별 평균", font=F_SEC, fill=FILL_SEC); r += 1
@@ -126,12 +151,13 @@ def write_media_single(ws, brand, title, media_disp, camp_disp, df_f, y, mth):
     # ■ 일자별 성과
     _put(ws, r, 2, "■ 일자별 성과", font=F_SEC, fill=FILL_SEC); r += 1
     _hdr(ws, r, "요일", "날짜"); r += 1
+    dfirst = r
     for _, d in daily.iterrows():
         col = SAT_COLOR if d["wd"] == 5 else SUN_COLOR if d["wd"] == 6 else None
         _put(ws, r, 2, d["요일"], align=CENTER, color=col)
         _put(ws, r, 3, d["날짜"], "yyyy-mm-dd", align=CENTER, color=col)
         _metric_row(ws, r, d); r += 1
-    _sum_row(ws, r, "합계", total)
+    _sum_row_f(ws, r, "합계", dfirst, r - 1)
 
     ws.column_dimensions["A"].width = 2
     ws.column_dimensions["B"].width = 10
@@ -167,17 +193,19 @@ def write_media_multi(ws, brand, title, media_disp, group_col, df_f, y, mth,
     for gval, sub in df_f.groupby(group_col):
         grp.append((str(gval), sub))
     grp.sort(key=lambda x: -x[1]["광고비용"].sum())
+    tfirst = r
     for gval, sub in grp:
         m = _metrics(sub)
         camp = sub["캠페인"].iloc[0] if len(sub) else ""
         _put(ws, r, 2, gval, align=LEFT_WRAP)   # 유형 라벨 전체(길면 줄바꿈)
         _put(ws, r, 3, camp, align=LEFT)
         _metric_row(ws, r, m); r += 1
-    _sum_row(ws, r, "TOTAL", total, c_val=f"{brand} 전체"); r += 2
+    _sum_row_f(ws, r, "TOTAL", tfirst, r - 1, c_val=f"{brand} 전체"); r += 2
 
     # ■ 주간현황
     _put(ws, r, 2, "■ 주간현황", font=F_SEC, fill=FILL_SEC); r += 1
     _hdr(ws, r, "주차", "기간"); r += 1
+    wfirst = r
     for wk in range(1, 6):
         sub = daily[daily["주차"] == wk]
         m = _metrics_from_sums(sub["노출수"].sum(), sub["클릭수"].sum(), sub["집행예산"].sum(),
@@ -186,17 +214,18 @@ def write_media_multi(ws, brand, title, media_disp, group_col, df_f, y, mth,
         _put(ws, r, 2, f"{wk}주차", align=CENTER)
         _put(ws, r, 3, periods[wk], align=CENTER)
         _metric_row(ws, r, m); r += 1
-    _sum_row(ws, r, "합계", total); r += 2
+    _sum_row_f(ws, r, "합계", wfirst, r - 1); r += 2
 
     # ■ 전체 일별 성과
     _put(ws, r, 2, "■ 전체 일별 성과", font=F_SEC, fill=FILL_SEC); r += 1
     _hdr(ws, r, "요일", "날짜"); r += 1
+    dfirst = r
     for _, d in daily.iterrows():
         col = SAT_COLOR if d["wd"] == 5 else SUN_COLOR if d["wd"] == 6 else None
         _put(ws, r, 2, d["요일"], align=CENTER, color=col)
         _put(ws, r, 3, d["날짜"], "yyyy-mm-dd", align=CENTER, color=col)
         _metric_row(ws, r, d); r += 1
-    _sum_row(ws, r, "합계", total); r += 1
+    _sum_row_f(ws, r, "합계", dfirst, r - 1); r += 1
 
     # ■ 유형별 일자별 (per_group_daily): 캠페인/유형마다 일자별 블록 (기타 제외)
     if per_group_daily:
@@ -209,13 +238,14 @@ def write_media_multi(ws, brand, title, media_disp, group_col, df_f, y, mth,
             _put(ws, r, 4, camp, align=LEFT)          # 캠페인명 기재
             r += 1
             _hdr(ws, r, "요일", "날짜"); r += 1
+            gfirst = r
             gdaily = daily_frame(sub, y, mth)
             for _, d in gdaily.iterrows():
                 col = SAT_COLOR if d["wd"] == 5 else SUN_COLOR if d["wd"] == 6 else None
                 _put(ws, r, 2, d["요일"], align=CENTER, color=col)
                 _put(ws, r, 3, d["날짜"], "yyyy-mm-dd", align=CENTER, color=col)
                 _metric_row(ws, r, d); r += 1
-            _sum_row(ws, r, "합계", _metrics(sub)); r += 1
+            _sum_row_f(ws, r, "합계", gfirst, r - 1); r += 1
 
     ws.column_dimensions["A"].width = 2
     ws.column_dimensions["B"].width = 14
