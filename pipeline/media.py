@@ -94,6 +94,20 @@ def _sum_row_f(ws, sr, label, first, last, c_val="", span_bc=False):
         _put(ws, sr, 4 + idx, f, fmt, font=F_SUM_M, fill=FILL_SUM_M)
 
 
+def _total_daily_from_blocks(ws, dfirst, ndays, type_firsts):
+    """전체 일별 성과 각 날짜셀을 '유형별 일자별 블록들의 같은날 합' 식으로.
+    절대지표=유형블록 같은행 합, 비율지표=전체행 자체 값으로 재계산."""
+    for j in range(ndays):
+        r = dfirst + j
+        for idx in _MC_SUM:                          # 절대: 유형블록 합
+            colL = get_column_letter(4 + idx)
+            parts = "+".join(f"{colL}{tf + j}" for tf in type_firsts)
+            _put(ws, r, 4 + idx, f"={parts}", MEDIA_COLS[idx][2])
+        for idx, (num, den) in _MC_RATIO.items():    # 비율: 전체행 값끼리 재계산
+            nL, dL = get_column_letter(4 + num), get_column_letter(4 + den)
+            _put(ws, r, 4 + idx, f"=IFERROR({nL}{r}/{dL}{r},0)", MEDIA_COLS[idx][2])
+
+
 def _hdr(ws, r, first, second=None):
     _put(ws, r, 2, first, font=F_COL_M, fill=FILL_COL, align=CENTER)
     if second:
@@ -221,10 +235,11 @@ def write_media_multi(ws, brand, title, media_disp, group_col, df_f, y, mth,
         _metric_row(ws, r, m); r += 1
     _sum_row_f(ws, r, "합계", wfirst, r - 1); r += 2
 
-    # ■ 전체 일별 성과
+    # ■ 전체 일별 성과 (아래 유형별 블록들의 합으로 식화 — per_group_daily 시)
     _put(ws, r, 2, "■ 전체 일별 성과", font=F_SEC, fill=FILL_SEC); r += 1
     _hdr(ws, r, "요일", "날짜"); r += 1
     dfirst = r
+    ndays = len(daily)
     for _, d in daily.iterrows():
         col = SAT_COLOR if d["wd"] == 5 else SUN_COLOR if d["wd"] == 6 else None
         _put(ws, r, 2, d["요일"], align=CENTER, color=col)
@@ -236,6 +251,7 @@ def write_media_multi(ws, brand, title, media_disp, group_col, df_f, y, mth,
 
     # ■ 유형별 일자별 (per_group_daily): 캠페인/유형마다 일자별 블록 (기타 제외)
     daily_of = {}                                # 유형라벨 → 일자별 블록 합계행
+    type_firsts = []                             # 유형별 일자별 블록의 데이터 시작행
     if per_group_daily:
         for gval, sub in grp:
             if gval == "기타":
@@ -254,7 +270,11 @@ def write_media_multi(ws, brand, title, media_disp, group_col, df_f, y, mth,
                 _put(ws, r, 3, d["날짜"], "yyyy-mm-dd", align=CENTER, color=col)
                 _metric_row(ws, r, d); r += 1
             _sum_row_f(ws, r, "합계", gfirst, r - 1)
-            daily_of[gval] = r; r += 1
+            daily_of[gval] = r; type_firsts.append(gfirst); r += 1
+        # 전체 일별 성과 = 유형별 블록 같은날 합(식). 기타 데이터 없을 때만(합 일치 보장).
+        has_etc = any(g == "기타" and len(s) > 0 for g, s in grp)
+        if type_firsts and not has_etc:
+            _total_daily_from_blocks(ws, dfirst, ndays, type_firsts)
 
     ws.column_dimensions["A"].width = 2
     ws.column_dimensions["B"].width = 14
