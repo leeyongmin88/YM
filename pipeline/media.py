@@ -289,7 +289,8 @@ _TYPED_REG = {
     "N디스": ("Naver", {"스마트채널": "smart", "애드부스트": "advoost"}),
 }
 # N검색 상품 → (블록index p, MO전용여부). 일자별 합계 = PC블록 + MO블록(엠버서더는 MO만).
-_NS_REG = {"bsa": (1, False), "cpc": (2, False), "shopping": (3, False), "Ambassador": (4, True)}
+_NS_REG = {"bsa": (1, False), "cpc": (2, False), "shopping": (3, False),
+           "place": (4, False), "Ambassador": (5, True)}
 
 
 def add_media_sheets(book, uni, y, mth):
@@ -387,7 +388,7 @@ NS_COLS = [
     ("객단가", "객단가", "#,##0"),
 ]
 NS_PRODUCTS = [("전체", None), ("브랜드검색", "bsa"), ("파워링크", "cpc"),
-               ("쇼핑검색", "shopping"), ("엠버서더", "Ambassador")]
+               ("쇼핑검색", "shopping"), ("플레이스", "place"), ("엠버서더", "Ambassador")]
 BLOCK_W = 18   # 블록 폭 (요일+날짜+15지표=17 + 1 여백)
 
 # N검색 전용 스타일 (참고파일 7월_260713): 제목 배너, 진네이비 헤더, 밝은파랑 섹션, 9pt
