@@ -6,6 +6,7 @@
 """
 import warnings
 warnings.simplefilter("ignore")
+from datetime import datetime
 import pandas as pd
 from config import OUT_DIR
 from ingest import combine_ads
@@ -51,6 +52,9 @@ def save_excel(df, path, y=2026, mth=7):
         # 플랫표
         from flat import write_flat
         write_flat(xw.book.create_sheet("통합_캠페인일자별"), df, y, mth)
+        # 통합_ENG 캠페인 (메타 게시물참여 '(eng)' 전용 — Raw/Meta_ENG, 통합 로직과 분리)
+        from eng import write_eng_sheet
+        write_eng_sheet(xw.book.create_sheet("통합_ENG 캠페인"), y, mth)
         # 브랜드 종합 + 리포트 추가 요청
         from summary import write_brand_summary, write_report_request
         write_brand_summary(xw.book.create_sheet("브랜드 종합"), df, y, mth)
@@ -71,12 +75,27 @@ def _reorder_by_brand(book):
     suffix_order = ["Total", "N검색", "구글SA", "피맥스_리포트", "K디스", "크리테오",
                     "RTB", "메타_성과형", "메타_브랜딩형", "N디스"]
     desired = (["통합", "리포트 추가 요청", "●광고비집행현황", "브랜드 종합", "통합_캠페인일자별",
+                "통합_ENG 캠페인",
                 "미맵핑_분류", "미맵핑_광고매출", "미맵핑_광고가입", "미맵핑_NaverSA"]
                + [f"{b}_{s}" for b in brand_order for s in suffix_order])
     existing = {ws.title: ws for ws in book.worksheets}
     ordered = [existing[t] for t in desired if t in existing]
     ordered += [ws for ws in book.worksheets if ws not in ordered]
     book._sheets = ordered
+
+
+def output_path():
+    """출력 경로: output/통합_리포트_YYMMDD.xlsx (YYMMDD=생성일).
+    같은 날 재생성 시 기존 파일을 덮어쓰지 않고 _ver.1, _ver.2 … 로 누적 보관."""
+    stamp = datetime.now().strftime("%y%m%d")
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    base = OUT_DIR / f"통합_리포트_{stamp}.xlsx"
+    if not base.exists():
+        return base
+    n = 1
+    while (OUT_DIR / f"통합_리포트_{stamp}_ver.{n}.xlsx").exists():
+        n += 1
+    return OUT_DIR / f"통합_리포트_{stamp}_ver.{n}.xlsx"
 
 
 def detect_month(df):
@@ -89,7 +108,7 @@ def detect_month(df):
 def main():
     df = build_unified()
     y, mth = detect_month(df)
-    out = OUT_DIR / "통합_리포트.xlsx"
+    out = output_path()
     save_excel(df, out, y, mth)
     # 요약
     print(f"대상 월: {y}년 {mth}월  (데이터에서 자동 감지)")
