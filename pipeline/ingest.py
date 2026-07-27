@@ -79,6 +79,11 @@ def _read_csv(path, encoding, sep=",", skiprows=0):
                        dtype=str, keep_default_na=False)
 
 
+def _find(subdir, pattern):
+    """RAW/subdir 안에서 pattern에 맞는 첫 파일 반환. 없으면 None (건너뜀 처리용)."""
+    return next(iter(sorted((RAW_DIR / subdir).glob(pattern))), None)
+
+
 # ---------- 매체별 리더 (매칭키 포함) ----------
 def read_meta():
     out = []
@@ -94,7 +99,9 @@ def read_meta():
 
 
 def read_google():
-    f = next((RAW_DIR / "Google").glob("*.csv"))
+    f = _find("Google", "*.csv")
+    if f is None:
+        return pd.DataFrame(columns=STD)
     df = _read_csv(f, "utf-16", sep="\t", skiprows=2)
     df.columns = [c.strip() for c in df.columns]
     out = []
@@ -109,7 +116,9 @@ def read_google():
 
 
 def read_kko():
-    f = next((RAW_DIR / "KKO").glob("*.csv"))
+    f = _find("KKO", "*.csv")
+    if f is None:
+        return pd.DataFrame(columns=STD)
     df = _read_csv(f, "utf-16", sep="\t")
     df.columns = [c.strip().strip('"') for c in df.columns]
     out = []
@@ -126,7 +135,9 @@ def read_kko():
 
 
 def read_criteo():
-    f = next((RAW_DIR / "Criteo").glob("*.xlsx"))
+    f = _find("Criteo", "*.xlsx")
+    if f is None:
+        return pd.DataFrame(columns=STD)
     out = []
     for r in _xlsx_rows(f, "Download")[1:]:
         if r[0] is None:
@@ -139,7 +150,9 @@ def read_criteo():
 
 
 def read_rtb():
-    f = next((RAW_DIR / "RTB").glob("*.xlsx"))
+    f = _find("RTB", "*.xlsx")
+    if f is None:
+        return pd.DataFrame(columns=STD)
     out = []
     for r in _xlsx_rows(f)[1:]:
         if r[0] is None:
@@ -153,7 +166,9 @@ def read_rtb():
 
 
 def read_naver_advoost():
-    f = next((RAW_DIR / "NAV").glob("*Advoost*.csv"))
+    f = _find("NAV", "*Advoost*.csv")
+    if f is None:
+        return pd.DataFrame(columns=STD)
     df = _read_csv(f, "utf-8-sig")
     df.columns = [c.strip() for c in df.columns]
     out = []
@@ -168,7 +183,9 @@ def read_naver_advoost():
 
 
 def read_naver_smart():
-    f = next((RAW_DIR / "NAV").glob("*Smart*.csv"))
+    f = _find("NAV", "*Smart*.csv")
+    if f is None:
+        return pd.DataFrame(columns=STD)
     df = _read_csv(f, "utf-8-sig")
     df.columns = [c.strip() for c in df.columns]
     out = []
@@ -185,7 +202,9 @@ def read_naver_smart():
 
 
 def read_nsa():
-    f = next((RAW_DIR / "NSA").glob("*.csv"))
+    f = _find("NSA", "*.csv")
+    if f is None:
+        return pd.DataFrame(columns=STD)
     df = _read_csv(f, "utf-8-sig", skiprows=1)   # 1행 제목 skip
     df.columns = [c.strip() for c in df.columns]
     out = []
@@ -220,6 +239,11 @@ def combine_ads():
     df = pd.concat(parts, ignore_index=True)
     df["날짜"] = pd.to_datetime(df["날짜"], errors="coerce")
     df = df[df["날짜"].notna()].reset_index(drop=True)
+    # 리포트 실행 당일(및 그 이후) 데이터 제외 — 당일치는 아직 미확정이므로 뺀다.
+    today = pd.Timestamp.now().normalize()
+    df = df[df["날짜"] < today].reset_index(drop=True)
+    if df.empty:
+        raise SystemExit("실행 당일 데이터를 제외하니 남은 데이터가 없습니다. (전일 이전 RAW가 있는지 확인하세요)")
     jg = build_jeongaek(df["날짜"].min(), df["날짜"].max())
     df = pd.concat([df, jg], ignore_index=True)
     df["날짜키"] = df["날짜"].dt.strftime("%Y%m%d")
