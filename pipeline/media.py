@@ -7,6 +7,7 @@
 import warnings
 warnings.simplefilter("ignore")
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
+from openpyxl.utils import get_column_letter
 
 LEFT_WRAP = Alignment(horizontal="left", vertical="center", wrap_text=True)  # 긴 유형 라벨 줄바꿈
 from total import (daily_frame, weekday_avg, _metrics, _metrics_from_sums, _div,
@@ -345,6 +346,27 @@ def _ns_row(ws, r, c0, m, sumrow=None):
         _put(ws, r, c0 + i, m.get(key, 0), fmt, font=font, fill=fill)
 
 
+def _ns_daily_sum(ws, first, last, c0):
+    """일자별 블록 합계행: 합계행 = last+1. 절대지표=SUM(first:last),
+    비율지표=합계행 셀 참조식(=IFERROR(분자/분모)). 블록 시작열=c0(요일), 지표는 c0+2~."""
+    sr = last + 1
+
+    def L(off):
+        return get_column_letter(c0 + off)
+
+    _put(ws, sr, c0, "합계", font=NS_F_SUM, fill=NS_FILL_SUM, align=CENTER)
+    _put(ws, sr, c0 + 1, "", font=NS_F_SUM, fill=NS_FILL_SUM)
+    # 절대지표 SUM (오프셋: 노출2·클릭3·광고비6·전환7·매출8·세션9·회원10)
+    for off in (2, 3, 6, 7, 8, 9, 10):
+        _put(ws, sr, c0 + off, f"=SUM({L(off)}{first}:{L(off)}{last})",
+             NS_COLS[off - 2][2], font=NS_F_SUM, fill=NS_FILL_SUM)
+    # 비율지표 = 합계행 값끼리 (오프셋, 분자, 분모)
+    for off, num, den in ((4, 3, 2), (5, 6, 3), (11, 7, 3), (12, 6, 7),
+                          (13, 6, 9), (14, 10, 3), (15, 8, 6), (16, 8, 7)):
+        _put(ws, sr, c0 + off, f"=IFERROR({L(num)}{sr}/{L(den)}{sr},0)",
+             NS_COLS[off - 2][2], font=NS_F_SUM, fill=NS_FILL_SUM)
+
+
 def write_nsearch(ws, brand, df_f, y, mth):
     """N검색: 가로 다중블록(상품별) + PC/MO 일자별 + 상품별 주간현황."""
     _put(ws, 3, 2, f"{BRAND_TITLE[brand]} N검색 TOTAL", font=NS_F_TITLE, fill=NS_FILL_TITLE)
@@ -405,6 +427,7 @@ def write_nsearch(ws, brand, df_f, y, mth):
     # 3·4. [일자별 성과 · PC/MO] (가로 블록). 엠버서더는 모바일 전용 → MO에만.
     def daily_section(r0, device, products):
         _put(ws, r0, 2, f"[일자별 성과 · {device}]", font=NS_F_SEC)
+        sum_row = r0 + 2
         for p, (label, pat) in enumerate(products):
             c0 = 2 + p * BLOCK_W
             dlabel = label if label == "엠버서더" else f"{label} {device}"
@@ -415,16 +438,21 @@ def write_nsearch(ws, brand, df_f, y, mth):
                 _put(ws, r0 + 2, c0 + 2 + i, h, font=NS_F_COL, fill=NS_FILL_COL, align=CENTER)
             dev = None if label == "엠버서더" else device   # 엠버서더는 기기구분 없음
             pdaily = daily_frame(prod_df(pat, dev), y, mth)
+            first = r0 + 3
             for j, (_, d) in enumerate(pdaily.iterrows()):
-                r = r0 + 3 + j
+                r = first + j
                 col = SAT_COLOR if d["wd"] == 5 else SUN_COLOR if d["wd"] == 6 else None
                 _put(ws, r, c0, d["요일"], align=CENTER, color=col)
                 _put(ws, r, c0 + 1, d["날짜"], "yyyy-mm-dd", align=CENTER, color=col)
                 for i, (_, key, fmt) in enumerate(NS_COLS):
                     _put(ws, r, c0 + 2 + i, d.get(key, 0), fmt)
+            last = first + len(pdaily) - 1
+            _ns_daily_sum(ws, first, last, c0)          # 블록 하단 합계행(SUM·비율식)
+            sum_row = last + 1
+        return sum_row                                   # 합계행 위치(다음 섹션 배치용)
     pc_products = [x for x in NS_PRODUCTS if x[0] != "엠버서더"]   # 엠버서더 모바일전용
-    daily_section(24, "PC", pc_products)
-    daily_section(58, "MO", NS_PRODUCTS)
+    pc_end = daily_section(24, "PC", pc_products)
+    daily_section(pc_end + 2, "MO", NS_PRODUCTS)         # PC 합계 아래로(겹침 방지)
 
     # 전 셀 9pt 통일 (제목 16pt 유지) — 볼드/색/채움 보존
     for row in ws.iter_rows():
