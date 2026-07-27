@@ -159,12 +159,14 @@ def write_media_single(ws, brand, title, media_disp, camp_disp, df_f, y, mth):
         _put(ws, r, 3, d["날짜"], "yyyy-mm-dd", align=CENTER, color=col)
         _metric_row(ws, r, d); r += 1
     _sum_row_f(ws, r, "합계", dfirst, r - 1)
+    daily_sum_row = r                            # 일자별 성과 합계행(집행예산 참조용)
 
     ws.column_dimensions["A"].width = 2
     ws.column_dimensions["B"].width = 10
     ws.column_dimensions["C"].width = 13
     for c in range(4, 4 + len(MEDIA_COLS)):
         ws.column_dimensions[ws.cell(row=1, column=c).column_letter].width = 12
+    return daily_sum_row                         # 일자별 성과 합계행
 
 
 def write_media_multi(ws, brand, title, media_disp, group_col, df_f, y, mth,
@@ -228,9 +230,12 @@ def write_media_multi(ws, brand, title, media_disp, group_col, df_f, y, mth,
         _put(ws, r, 2, d["요일"], align=CENTER, color=col)
         _put(ws, r, 3, d["날짜"], "yyyy-mm-dd", align=CENTER, color=col)
         _metric_row(ws, r, d); r += 1
-    _sum_row_f(ws, r, "합계", dfirst, r - 1); r += 1
+    _sum_row_f(ws, r, "합계", dfirst, r - 1)
+    total_daily_row = r                          # 전체 일별 성과 합계행
+    r += 1
 
     # ■ 유형별 일자별 (per_group_daily): 캠페인/유형마다 일자별 블록 (기타 제외)
+    daily_of = {}                                # 유형라벨 → 일자별 블록 합계행
     if per_group_daily:
         for gval, sub in grp:
             if gval == "기타":
@@ -248,14 +253,16 @@ def write_media_multi(ws, brand, title, media_disp, group_col, df_f, y, mth,
                 _put(ws, r, 2, d["요일"], align=CENTER, color=col)
                 _put(ws, r, 3, d["날짜"], "yyyy-mm-dd", align=CENTER, color=col)
                 _metric_row(ws, r, d); r += 1
-            _sum_row_f(ws, r, "합계", gfirst, r - 1); r += 1
+            _sum_row_f(ws, r, "합계", gfirst, r - 1)
+            daily_of[gval] = r; r += 1
 
     ws.column_dimensions["A"].width = 2
     ws.column_dimensions["B"].width = 14
     ws.column_dimensions["C"].width = 18
     for c in range(4, 4 + len(MEDIA_COLS)):
         ws.column_dimensions[ws.cell(row=1, column=c).column_letter].width = 12
-    return row_of                               # {유형라벨/__TOTAL__ : 광고비셀 행}
+    # 참조용: 전체 일별 합계행 + 유형별 일별 블록 합계행 (일자별 데이터 기반)
+    return {"total_daily": total_daily_row, "type_daily": daily_of}
 
 
 # 다중유형 시트(광고그룹별, 유형별일자별 포함): (접미사, 제목, 매체표시, 매체, 패턴, 그룹컬럼, 대상브랜드)
@@ -273,15 +280,16 @@ SINGLE_SHEETS = [
 
 
 # 매체 광고비(집행예산) 열 = H. 상세시트→[매체 예산 집행율] 참조식 등록용.
+# 참조는 '일자별 성과' 표의 합계셀 기준(일자별 데이터 기반).
 _COST_COL = "H"
-# 유형파생 시트: suffix → (예산매체, 유형라벨→예산패턴  or  None=매체전체 TOTAL 1건)
+# 유형파생 시트: suffix → (예산매체, 유형라벨→예산패턴  or  None=매체전체 일별합계 1건)
 _TYPED_REG = {
     "크리테오": ("Criteo", None),
     "K디스": ("KKO", {"네이티브": "ntv", "비즈보드": "biz", "카탈로그": "_ca"}),
     "N디스": ("Naver", {"스마트채널": "smart", "애드부스트": "advoost"}),
 }
-# N검색 상품블록 누적셀(H7~H10) → 예산패턴
-_NS_REG = {"bsa": 7, "cpc": 8, "shopping": 9, "Ambassador": 10}
+# N검색 상품 → (블록index p, MO전용여부). 일자별 합계 = PC블록 + MO블록(엠버서더는 MO만).
+_NS_REG = {"bsa": (1, False), "cpc": (2, False), "shopping": (3, False), "Ambassador": (4, True)}
 
 
 def add_media_sheets(book, uni, y, mth):
@@ -289,16 +297,16 @@ def add_media_sheets(book, uni, y, mth):
         for b in brands:
             df_f = _filter(uni, b, media, pat)
             sheet = f"{b}_{suffix}"
-            write_media_single(book.create_sheet(sheet), b, title_t.format(T=BRAND_TITLE[b]),
-                               mdisp, camp_t.format(B=b), df_f, y, mth)
-            reg_cost_cell(b, media, pat, f"'{sheet}'!{_COST_COL}14")   # 주간현황 합계셀
+            dsr = write_media_single(book.create_sheet(sheet), b, title_t.format(T=BRAND_TITLE[b]),
+                                     mdisp, camp_t.format(B=b), df_f, y, mth)
+            reg_cost_cell(b, media, pat, f"'{sheet}'!{_COST_COL}{dsr}")   # 일자별 성과 합계셀
     for suffix, title_t, mdisp, media, pat, gcol, brands in MULTI_SHEETS:
         for b in brands:
             df_f = _filter(uni, b, media, pat)
             sheet = f"{b}_{suffix}"
-            rows = write_media_multi(book.create_sheet(sheet), b, title_t.format(T=BRAND_TITLE[b]),
-                                     mdisp, gcol, df_f, y, mth, per_group_daily=True)
-            reg_cost_cell(b, media, pat, f"'{sheet}'!{_COST_COL}{rows['__TOTAL__']}")
+            res = write_media_multi(book.create_sheet(sheet), b, title_t.format(T=BRAND_TITLE[b]),
+                                    mdisp, gcol, df_f, y, mth, per_group_daily=True)
+            reg_cost_cell(b, media, pat, f"'{sheet}'!{_COST_COL}{res['total_daily']}")
     # 유형별 파생그룹 시트 (유형별 일자별 블록 포함): (접미사,제목,매체표시,매체,유형함수,대상브랜드)
     typed = [
         ("크리테오", "{T} 크리테오 리포트", "criteo", "Criteo", criteo_type, ["MI", "IT", "EBM"]),
@@ -311,29 +319,33 @@ def add_media_sheets(book, uni, y, mth):
             df_f = _filter(uni, b, media, "").copy()
             df_f["유형"] = df_f["캠페인"].map(tfn)
             sheet = f"{b}_{suffix}"
-            rows = write_media_multi(book.create_sheet(sheet), b, title_t.format(T=BRAND_TITLE[b]),
-                                     mdisp, "유형", df_f, y, mth, per_group_daily=True)
-            if lab2pat is None:                        # 매체전체 1건(크리테오) → TOTAL 참조
-                reg_cost_cell(b, regmedia, "", f"'{sheet}'!{_COST_COL}{rows['__TOTAL__']}")
-            else:                                       # 유형별 → 각 누적요약행 참조
+            res = write_media_multi(book.create_sheet(sheet), b, title_t.format(T=BRAND_TITLE[b]),
+                                    mdisp, "유형", df_f, y, mth, per_group_daily=True)
+            if lab2pat is None:                        # 매체전체 1건(크리테오) → 전체 일별합계
+                reg_cost_cell(b, regmedia, "", f"'{sheet}'!{_COST_COL}{res['total_daily']}")
+            else:                                       # 유형별 → 각 유형 일별블록 합계
+                td = res["type_daily"]
                 for lab, pat in lab2pat.items():
-                    if lab in rows:
-                        reg_cost_cell(b, regmedia, pat, f"'{sheet}'!{_COST_COL}{rows[lab]}")
+                    if lab in td:
+                        reg_cost_cell(b, regmedia, pat, f"'{sheet}'!{_COST_COL}{td[lab]}")
     # 메타 성과형 (광고그룹×catalog소재/나머지 세분)
     for b in ["MI", "IT", "EBM"]:
         df_f = _filter(uni, b, "Meta", "pf").copy()
         df_f["유형"] = df_f.apply(lambda r: meta_perf_label(r["광고그룹"], r["광고(소재)"]), axis=1)
         sheet = f"{b}_메타_성과형"
-        rows = write_media_multi(book.create_sheet(sheet), b, f"{BRAND_TITLE[b]} 메타 성과형(pf) 리포트",
-                                 "meta", "유형", df_f, y, mth, per_group_daily=True)
-        reg_cost_cell(b, "Meta", "pf", f"'{sheet}'!{_COST_COL}{rows['__TOTAL__']}")
-    # N검색 (가로 다중블록 + PC/MO)
+        res = write_media_multi(book.create_sheet(sheet), b, f"{BRAND_TITLE[b]} 메타 성과형(pf) 리포트",
+                                "meta", "유형", df_f, y, mth, per_group_daily=True)
+        reg_cost_cell(b, "Meta", "pf", f"'{sheet}'!{_COST_COL}{res['total_daily']}")
+    # N검색 (가로 다중블록 + PC/MO) — 일자별 합계 = PC블록 합계 + MO블록 합계
     for b in ["MI", "IT", "EBM"]:
         df_f = _filter(uni, b, "Naver SA", "")
         sheet = f"{b}_N검색"
-        write_nsearch(book.create_sheet(sheet), b, df_f, y, mth)
-        for pat, rr in _NS_REG.items():           # 상품별 누적셀(H7~H10) 참조 등록
-            reg_cost_cell(b, "Naver SA", pat, f"'{sheet}'!{_COST_COL}{rr}")
+        pc_end, mo_end = write_nsearch(book.create_sheet(sheet), b, df_f, y, mth)
+        for pat, (p, mo_only) in _NS_REG.items():
+            col = get_column_letter(2 + p * BLOCK_W + 6)   # 상품블록 광고비 열
+            mo = f"'{sheet}'!{col}{mo_end}"
+            ref = mo if mo_only else f"'{sheet}'!{col}{pc_end}+{mo}"
+            reg_cost_cell(b, "Naver SA", pat, ref)
 
 
 def criteo_type(camp):
@@ -510,7 +522,7 @@ def write_nsearch(ws, brand, df_f, y, mth):
         return sum_row                                   # 합계행 위치(다음 섹션 배치용)
     pc_products = [x for x in NS_PRODUCTS if x[0] != "엠버서더"]   # 엠버서더 모바일전용
     pc_end = daily_section(24, "PC", pc_products)
-    daily_section(pc_end + 2, "MO", NS_PRODUCTS)         # PC 합계 아래로(겹침 방지)
+    mo_end = daily_section(pc_end + 2, "MO", NS_PRODUCTS)  # PC 합계 아래로(겹침 방지)
 
     # 전 셀 9pt 통일 (제목 16pt 유지) — 볼드/색/채움 보존
     for row in ws.iter_rows():
@@ -534,6 +546,7 @@ def write_nsearch(ws, brand, df_f, y, mth):
         c0 = 2 + p * BLOCK_W
         ws.column_dimensions[ws.cell(row=1, column=c0).column_letter].width = 9
         ws.column_dimensions[ws.cell(row=1, column=c0 + 1).column_letter].width = 11
+    return pc_end, mo_end                        # PC/MO 일자별 합계행(집행예산 참조용)
 
 
 def _short_adgroup(adgroup):
