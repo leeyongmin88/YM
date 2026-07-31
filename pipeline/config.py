@@ -8,9 +8,9 @@ from pathlib import Path
 # --- 경로 ---
 # config.py는 pipeline/ 안 → 상위 폴더가 프로젝트 루트. 어디에 두든 자동 인식(이식성).
 YM_ROOT = Path(__file__).resolve().parent.parent
-# 월별 데이터 분리: 환경변수 YM_RAW로 RAW 폴더 선택(기본 "Raw").
-#   예) 8월 → YM_RAW=Raw_2508 python build.py   (예산·Meta_ENG 등 모든 경로가 이 폴더 기준)
-RAW_DIR = YM_ROOT / os.environ.get("YM_RAW", "Raw")
+# 월별 데이터 분리: 환경변수 YM_RAW로 RAW 폴더 선택(미설정·빈값이면 기본 "Raw").
+#   예) 8월 → YM_RAW=Raw_2026_08 python build.py  (예산·Meta_ENG 등 모든 경로가 이 폴더 기준)
+RAW_DIR = YM_ROOT / (os.environ.get("YM_RAW") or "Raw")
 OUT_DIR = YM_ROOT / "output"
 
 # --- 월예산 파일 (매월 사용자가 이 엑셀만 수정하면 집행율에 반영) ---
