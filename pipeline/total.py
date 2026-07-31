@@ -285,7 +285,7 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
         _put(ws, r, 5, f"={ref}" if ref else m["집행예산"], "#,##0")
         _put(ws, r, 6, f"=IFERROR(E{r}/D{r},0)", "0.00%")   # 집행율 = 집행예산/월예산
         _put(ws, r, 7, "")                        # 비고 열(테두리용 빈칸)
-        if m["집행예산"] == 0:                      # 집행 0 매체행 숨김(집행 발생 시 자동 해제)
+        if m["집행예산"] == 0 and budget == 0:      # 집행·예산 모두 0인 행만 숨김(예산 있으면 표시)
             ws.row_dimensions[r].hidden = True
         tb += budget; tc += m["집행예산"]
         r += 1
@@ -312,7 +312,7 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
         _put(ws, r, 3, label, align=LEFT)
         for i, k in enumerate(CUM_KEYS):
             _put(ws, r, 4 + i, m[k], CUM_FMT[i])
-        if m["집행예산"] == 0:                      # 집행 0 매체행 숨김(집행 발생 시 자동 해제)
+        if m["집행예산"] == 0 and budget == 0:      # 집행·예산 모두 0인 행만 숨김(예산 있으면 표시)
             ws.row_dimensions[r].hidden = True
         r += 1
     _put(ws, r, 2, "합계", font=F_SUM, fill=FILL_SUM, align=CENTER)
