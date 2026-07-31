@@ -84,18 +84,20 @@ def _reorder_by_brand(book):
     book._sheets = ordered
 
 
-def output_path():
-    """출력 경로: output/통합_리포트_YYMMDD.xlsx (YYMMDD=생성일).
-    같은 날 재생성 시 기존 파일을 덮어쓰지 않고 _ver.1, _ver.2 … 로 누적 보관."""
+def output_path(y, mth):
+    """출력 경로: output/통합_리포트_{데이터연월}_{생성일}.xlsx.
+    예) 8월 데이터를 7/31 생성 → 통합_리포트_2508_260731.xlsx (데이터 월 구분).
+    같은 조합 재생성 시 기존 파일을 덮어쓰지 않고 _ver.1, _ver.2 … 로 누적 보관."""
+    ym = f"{y}년{mth:02d}월"                       # 데이터 연월 (예: 2026년08월)
     stamp = datetime.now().strftime("%y%m%d")
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    base = OUT_DIR / f"통합_리포트_{stamp}.xlsx"
+    base = OUT_DIR / f"통합_리포트_{ym}_생성{stamp}.xlsx"
     if not base.exists():
         return base
     n = 1
-    while (OUT_DIR / f"통합_리포트_{stamp}_ver.{n}.xlsx").exists():
+    while (OUT_DIR / f"통합_리포트_{ym}_생성{stamp}_ver.{n}.xlsx").exists():
         n += 1
-    return OUT_DIR / f"통합_리포트_{stamp}_ver.{n}.xlsx"
+    return OUT_DIR / f"통합_리포트_{ym}_생성{stamp}_ver.{n}.xlsx"
 
 
 def detect_month(df):
@@ -108,7 +110,7 @@ def detect_month(df):
 def main():
     df = build_unified()
     y, mth = detect_month(df)
-    out = output_path()
+    out = output_path(y, mth)
     save_excel(df, out, y, mth)
     # 요약
     print(f"대상 월: {y}년 {mth}월  (데이터에서 자동 감지)")
