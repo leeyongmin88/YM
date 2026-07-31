@@ -1,6 +1,7 @@
 # 실제 광고/매출 데이터 — GitHub에 올리지 않음 (로컬 보관)
+# Raw_*/ = 월별 데이터 폴더 (Raw_2506, Raw_2507, Raw_2508 …)
 Raw/
-Raw_*/          # 월별 데이터 폴더 (Raw_2506, Raw_2507, Raw_2508 …)
+Raw_*/
 output/
 
 # Python
