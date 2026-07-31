@@ -275,8 +275,7 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
     for c, h in enumerate(["구분", "매체별 성과", "월예산", "집행예산", "집행율", "비고"], start=2):
         _put(ws, r, c, h, font=F_COL, fill=FILL_COL, align=CENTER)
     r += 1
-    tb = tc = 0.0
-    efirst = r                                    # 집행예산 데이터 첫 행(합계 SUM용)
+    efirst = r                                    # 데이터 첫 행(월예산·집행예산 합계 SUM용)
     for gubun, label, media, pat, budget, m in cum_rows:
         _put(ws, r, 2, gubun, align=CENTER)
         _put(ws, r, 3, label, align=LEFT)
@@ -287,13 +286,12 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
         _put(ws, r, 7, "")                        # 비고 열(테두리용 빈칸)
         if m["집행예산"] == 0 and budget == 0:      # 집행·예산 모두 0인 행만 숨김(예산 있으면 표시)
             ws.row_dimensions[r].hidden = True
-        tb += budget; tc += m["집행예산"]
         r += 1
     # 합계: B:C 병합·가운데, 비고(G)도 합계색
     _put(ws, r, 2, "합계", font=F_SUM, fill=FILL_SUM, align=CENTER)
     _put(ws, r, 3, "", font=F_SUM, fill=FILL_SUM)
     ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=3)
-    _put(ws, r, 4, tb, "#,##0", font=F_SUM, fill=FILL_SUM)
+    _put(ws, r, 4, f"=SUM(D{efirst}:D{r - 1})", "#,##0", font=F_SUM, fill=FILL_SUM)
     _put(ws, r, 5, f"=SUM(E{efirst}:E{r - 1})", "#,##0", font=F_SUM, fill=FILL_SUM)
     _put(ws, r, 6, f"=IFERROR(E{r}/D{r},0)", "0.00%", font=F_SUM, fill=FILL_SUM)
     _put(ws, r, 7, "", font=F_SUM, fill=FILL_SUM)
@@ -312,7 +310,7 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
         _put(ws, r, 3, label, align=LEFT)
         for i, k in enumerate(CUM_KEYS):
             _put(ws, r, 4 + i, m[k], CUM_FMT[i])
-        if m["집행예산"] == 0 and budget == 0:      # 집행·예산 모두 0인 행만 숨김(예산 있으면 표시)
+        if m["집행예산"] == 0:                      # 집행 0 매체행 숨김(집행 발생 시 자동 해제)
             ws.row_dimensions[r].hidden = True
         r += 1
     _put(ws, r, 2, "합계", font=F_SUM, fill=FILL_SUM, align=CENTER)
