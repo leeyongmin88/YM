@@ -32,6 +32,9 @@ def platform_of(source_medium):
     if s.startswith("naver"):  return "Naver"
     if s.startswith("google"): return "Google"
     if any(x in s for x in ["instagram", "igshopping", "fb /", "ig /"]): return "Meta"
+    if "dable" in s:   return "Dable"
+    if "tiktok" in s or "tik_tok" in s: return "TikTok"
+    if "toss" in s:    return "Toss"
     return ""
 
 
@@ -40,6 +43,12 @@ def ga_key(plat, camp, content, camp_id):
     camp = str(camp).strip()
     if plat == "Meta":
         return _code(content, "MT")                # GA 콘텐츠의 MT코드
+    if plat == "Dable":
+        return _code(content, "DB")                # 소재 애드코드 DB####
+    if plat == "TikTok":
+        return _code(content, "TT")                # 소재 애드코드 TT####
+    if plat == "Toss":
+        return _code(content, "TS")                # 소재 애드코드 TS####
     if plat == "Google":
         return camp if camp.upper().startswith("GGL") else ""
     if plat == "Criteo":

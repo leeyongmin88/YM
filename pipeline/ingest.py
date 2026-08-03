@@ -218,8 +218,59 @@ def read_nsa():
     return pd.DataFrame(out, columns=STD)
 
 
+def read_dable():
+    f = _find("Dable", "*.xlsx")
+    if f is None:
+        return pd.DataFrame(columns=STD)
+    out = []
+    for r in _xlsx_rows(f, "ad-performance-stats")[1:]:
+        if r[0] is None:
+            continue
+        camp = str(r[2] or ""); cre = str(r[5] or "")       # 캠페인명, 콘텐츠관리용제목(소재)
+        key = _code(cre, "DB") or camp                       # 애드코드 DB####
+        out.append(["Dable", brand_from(camp), camp, camp, cre,
+                    to_date(r[0]), to_num(r[8]), to_num(r[6]), to_num(r[7]), key])
+    return pd.DataFrame(out, columns=STD)                    # 소비/유효노출/클릭
+
+
+def read_tiktok():
+    f = _find("TikTok", "*.xlsx")
+    if f is None:
+        return pd.DataFrame(columns=STD)
+    out = []
+    for r in _xlsx_rows(f, "Sheet1")[1:]:
+        camp = str(r[0] or "")
+        if not camp or camp.startswith("총"):                 # '총 N개 결과' 요약행 skip
+            continue
+        cre = str(r[2] or "")                                # 광고 이름(소재)
+        key = _code(cre, "TT") or camp                       # 애드코드 TT####
+        out.append(["TikTok", brand_from(camp), camp, str(r[1] or ""), cre,
+                    to_date(r[3]), to_num(r[4]), to_num(r[5]), to_num(r[6]), key])
+    return pd.DataFrame(out, columns=STD)                    # 일별/지출/노출/클릭(목적지)
+
+
+def read_toss():
+    f = _find("Toss", "*.csv")
+    if f is None:
+        return pd.DataFrame(columns=STD)
+    df = _read_csv(f, "utf-8-sig")
+    df.columns = [c.strip() for c in df.columns]
+    out = []
+    for _, r in df.iterrows():
+        camp = str(r["캠페인명"]).strip()                    # 끝 탭문자 제거
+        if not camp:
+            continue
+        cre = str(r["소재명"]).strip()                       # 소재명
+        key = _code(cre, "TS") or camp                       # 애드코드 TS####
+        out.append(["Toss", brand_from(camp), camp, str(r["광고세트명"]).strip(), cre,
+                    to_date(r["이벤트 발생 날짜"]), to_num(r["집행 비용 (VAT 제외) (₩)"]),
+                    to_num(r["노출 수"]), to_num(r["클릭 수"]), key])
+    return pd.DataFrame(out, columns=STD)
+
+
 READERS = [read_meta, read_google, read_kko, read_criteo, read_rtb,
-           read_naver_advoost, read_naver_smart, read_nsa]
+           read_naver_advoost, read_naver_smart, read_nsa,
+           read_dable, read_tiktok, read_toss]
 
 
 def build_jeongaek(date_min, date_max):
