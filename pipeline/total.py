@@ -306,7 +306,7 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
         _put(ws, r, 5, f"={ref}" if ref else m["집행예산"], "#,##0")
         _put(ws, r, 6, f"=IFERROR(E{r}/D{r},0)", "0.00%")   # 집행율 = 집행예산/월예산
         _put(ws, r, 7, "")                        # 비고 열(테두리용 빈칸)
-        if m["집행예산"] == 0 and budget == 0:      # 집행·예산 모두 0인 행만 숨김(예산 있으면 표시)
+        if budget == 0:                           # 월예산 0인 행만 숨김(월예산 있으면 항상 표시)
             ws.row_dimensions[r].hidden = True
         r += 1
     # 합계: B:C 병합·가운데, 비고(G)도 합계색
