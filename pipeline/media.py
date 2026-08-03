@@ -360,6 +360,17 @@ def add_media_sheets(book, uni, y, mth):
             mo = f"'{sheet}'!{col}{mo_end}"
             ref = mo if mo_only else f"'{sheet}'!{col}{pc_end}+{mo}"
             reg_cost_cell(b, "Naver SA", pat, ref)
+    # 신규 DA 매체(Dable/TikTok/Toss): 광고그룹별 상세시트, 데이터 있는 브랜드만
+    for media, kor, mdisp in [("Dable", "데이블", "dable"), ("TikTok", "틱톡", "tiktok"),
+                              ("Toss", "토스", "toss")]:
+        for b in ["MI", "IT", "EBM"]:
+            df_f = _filter(uni, b, media, "")
+            if df_f["광고비용"].sum() == 0:            # 집행 없는 브랜드는 시트 생략
+                continue
+            sheet = f"{b}_{kor}"
+            res = write_media_multi(book.create_sheet(sheet), b, f"{BRAND_TITLE[b]} {kor} 리포트",
+                                    mdisp, "광고그룹", df_f, y, mth, per_group_daily=True)
+            reg_cost_cell(b, media, "", f"'{sheet}'!{_COST_COL}{res['total_daily']}")
 
 
 def criteo_type(camp):
