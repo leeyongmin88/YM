@@ -59,7 +59,8 @@ F_BANNER_BIG = Font(name="맑은 고딕", bold=True, size=24, color="FFFFFF")
 def write_brand_summary(ws, uni, y, mth):
     ncol = 6 + len(BS_KEYS)          # 마지막 데이터 열(집행율=6, 지표 7~19)
     # 상단 배너
-    _put(ws, 2, 2, f"- {y}년 {mth}월 -", font=F_BANNER, fill=NAVY, align=CENTER)
+    import period
+    _put(ws, 2, 2, f"- {period.label()} -", font=F_BANNER, fill=NAVY, align=CENTER)
     ws.merge_cells(start_row=2, start_column=2, end_row=2, end_column=ncol)
     _put(ws, 3, 2, "시선인터내셔널 Ad Report", font=F_BANNER_BIG, fill=NAVY, align=CENTER)
     ws.merge_cells(start_row=3, start_column=2, end_row=3, end_column=ncol)

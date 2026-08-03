@@ -11,6 +11,7 @@ from datetime import date, timedelta
 import pandas as pd
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from config import load_media_table
+import period
 
 BRAND_TITLE = {"MI": "미샤", "IT": "잇미샤", "EBM": "E.B.M"}
 
@@ -91,6 +92,28 @@ else:
 _BUD_LOOKUP = {(str(g).strip(), str(l).strip()): b for g, l, m, p, b in ACTIVE_MEDIA}
 
 
+def set_budget_folders(folders):
+    """여러 월 폴더의 예산을 합산해 ACTIVE_MEDIA·_BUD_LOOKUP 재구성 (다월 통합 리포트)."""
+    import config
+    global ACTIVE_MEDIA, _BUD_LOOKUP
+    merged, order = {}, []
+    for fol in folders:
+        config.BUDGET_FILE = config.YM_ROOT / fol / "예산.xlsx"
+        fm = load_media_table()
+        if not (fm and all(m is not None for _g, _l, m, _p, _b in fm)):
+            continue
+        for g, l, m, p, b in _combine_media(fm):
+            key = (g, l, m, p)
+            if key not in merged:
+                merged[key] = {"MI": 0, "EBM": 0, "IT": 0}
+                order.append(key)
+            for br, v in b.items():
+                merged[key][br] = merged[key].get(br, 0) + v
+    if order:
+        ACTIVE_MEDIA = [(g, l, m, p, merged[(g, l, m, p)]) for (g, l, m, p) in order]
+        _BUD_LOOKUP = {(str(g).strip(), str(l).strip()): b for g, l, m, p, b in ACTIVE_MEDIA}
+
+
 def budget_of(brand, gubun, label, default=0):
     """브랜드별 월예산: 예산파일 우선, 없으면 기본값."""
     return _BUD_LOOKUP.get((str(gubun).strip(), str(label).strip()), {}).get(brand, default)
@@ -156,8 +179,8 @@ def excel_weeknum2(d):
 
 
 def week_in_month(d):
-    first = d.replace(day=1)
-    return excel_weeknum2(d) - excel_weeknum2(first) + 1
+    """기간 시작 기준 주차 (단일월이면 월내 주차와 동일). period.week_of 위임."""
+    return period.week_of(d)
 
 
 def media_cumulative(df_brand, brand):
@@ -185,12 +208,12 @@ def gubun_rollup(cum_rows):
     return out
 
 
-def weekday_avg(daily_df, y, mth):
-    """요일별 평균 = 해당 요일 합계 / 그 달 해당 요일 수. 주중/주말/일 평균 포함."""
-    ndays = calendar.monthrange(y, mth)[1]
+def weekday_avg(daily_df, y=None, mth=None):
+    """요일별 평균 = 해당 요일 합계 / 기간내 해당 요일 수. 주중/주말/일 평균 포함.
+    y·mth 인자는 호환용(무시) — 실제 범위는 period 모듈에서 가져온다."""
     wd_count = [0] * 7
-    for day in range(1, ndays + 1):
-        wd_count[date(y, mth, day).weekday()] += 1
+    for d in period.days():
+        wd_count[d.weekday()] += 1
     rows = []
     for wd in range(7):
         sub = daily_df[daily_df["wd"] == wd]
@@ -218,20 +241,19 @@ def weekday_avg(daily_df, y, mth):
     return rows, weekday, weekend, allavg
 
 
-def daily_frame(df_brand, y, mth):
-    """1일~월말 전체 일자 성과 (빠진 날은 0)."""
-    ndays = calendar.monthrange(y, mth)[1]
+def daily_frame(df_brand, y=None, mth=None):
+    """기간(period) 전체 일자 성과 (빠진 날은 0). 단일월이면 1일~월말과 동일.
+    y·mth 인자는 호환용(무시) — 실제 범위는 period 모듈에서 가져온다."""
     g = df_brand.groupby("날짜키").agg(
         imp=("노출수", "sum"), clk=("클릭수", "sum"), cost=("광고비용", "sum"),
         cv=("GA구매", "sum"), rev=("GA구매수익", "sum"), mem=("회원가입수", "sum"),
         sess=("GA세션", "sum")).to_dict("index")
     recs = []
-    for day in range(1, ndays + 1):
-        d = date(y, mth, day)
+    for d in period.days():
         dk = d.strftime("%Y%m%d")
         s = g.get(dk, {"imp": 0, "clk": 0, "cost": 0, "cv": 0, "rev": 0, "mem": 0, "sess": 0})
         m = _metrics_from_sums(s["imp"], s["clk"], s["cost"], s["cv"], s["rev"], s["mem"], s["sess"])
-        recs.append({"주차": week_in_month(d), "요일": WD_KR[d.weekday()], "날짜": d,
+        recs.append({"주차": period.week_of(d), "요일": WD_KR[d.weekday()], "날짜": d,
                      "wd": d.weekday(), **m})
     return pd.DataFrame(recs)
 
@@ -265,7 +287,7 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
     cum_rows, total = media_cumulative(df_brand, brand)
     daily = daily_frame(df_brand, y, mth)
 
-    _put(ws, 2, 2, f"- {y}년 {mth}월 -", font=F_TITLE)
+    _put(ws, 2, 2, f"- {period.label()} -", font=F_TITLE)
     _put(ws, 3, 2, f"[ {BRAND_TITLE[brand]} ] Ad Report", font=F_TITLE)
     r = 6
 
@@ -390,14 +412,14 @@ def write_total_sheet(ws, brand, df_brand, y, mth):
     _put(ws, r, 4 + len(wk_hdr), "CAC", font=F_COL, fill=FILL_COL, align=CENTER)
     r += 1
     wk_metrics = []
-    for wk in range(1, 6):
+    for wk in range(1, period.n_weeks() + 1):
         sub = daily[daily["주차"] == wk]
         m = _metrics_from_sums(sub["노출수"].sum(), sub["클릭수"].sum(), sub["집행예산"].sum(),
                                sub["전환수"].sum(), sub["매출"].sum(), sub["회원가입"].sum(),
                                sub["세션수"].sum())
         wk_metrics.append(m)
         _put(ws, r, 1, wk, align=CENTER, color="FFFFFFFF")    # A열 주차번호(흰글씨)
-        _put(ws, r, 2, f"{mth}월 {wk}주", align=CENTER)
+        _put(ws, r, 2, f"{period.week_month(wk)}월 {wk}주", align=CENTER)
         _merge_bc(ws, r)
         for i, k in enumerate(CUM_KEYS):
             _put(ws, r, 4 + i, m[k], CUM_FMT[i])

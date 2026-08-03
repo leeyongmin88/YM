@@ -6,11 +6,15 @@
 """
 import warnings
 warnings.simplefilter("ignore")
-from datetime import datetime
+import os
+import calendar
+from datetime import datetime, date
 import pandas as pd
+import config
 from config import OUT_DIR
 from ingest import combine_ads
 from ga import join_ga
+import period
 
 # 통합 시트 컬럼 순서 (완성본과 동일, 17열)
 UNIFIED_ORDER = [
@@ -20,16 +24,55 @@ UNIFIED_ORDER = [
 ]
 
 
+def month_folders():
+    """YM_RAW이 세미콜론 다중 폴더면 리스트 반환(예: 6+7월 통합), 아니면 None."""
+    raw = os.environ.get("YM_RAW", "")
+    if ";" in raw:
+        return [f.strip() for f in raw.split(";") if f.strip()]
+    return None
+
+
+def _read_folder(fol):
+    """한 월 폴더(fol)를 RAW+GA+정액까지 읽어 통합 DataFrame 반환.
+    모듈 전역(RAW_DIR·JEONGAEK·GA_DIR)을 해당 폴더로 재바인딩."""
+    import ingest, ga
+    p = config.YM_ROOT / fol
+    config.RAW_DIR = p
+    config.BUDGET_FILE = p / "예산.xlsx"
+    ingest.RAW_DIR = p
+    ingest.JEONGAEK = config._build_jeongaek()     # 그 달 정액 예산
+    ga.GA_DIR = p / "GA"
+    return join_ga(combine_ads())
+
+
 def build_unified():
-    """통합 DataFrame (17열, 정렬 완료) 반환."""
-    df = join_ga(combine_ads())
+    """통합 DataFrame (17열, 정렬 완료) 반환. 다중 폴더면 월별로 읽어 concat."""
+    folders = month_folders()
+    if folders:
+        df = pd.concat([_read_folder(f) for f in folders], ignore_index=True)
+    else:
+        df = join_ga(combine_ads())
     df = df[UNIFIED_ORDER].copy()
     df = df.sort_values(["매체", "브랜드", "캠페인", "광고그룹", "광고(소재)", "날짜"]).reset_index(drop=True)
     return df
 
 
+def detect_period(df):
+    """리포트 기간 = 데이터 최소월 1일 ~ 최대월 말일.
+    단일월이면 그 달 전체(회귀 안전), 다월이면 연속 span(예: 6/1~7/31)."""
+    dmin, dmax = df["날짜"].min().date(), df["날짜"].max().date()
+    start = date(dmin.year, dmin.month, 1)
+    end = date(dmax.year, dmax.month, calendar.monthrange(dmax.year, dmax.month)[1])
+    return start, end
+
+
 def save_excel(df, path, y=2026, mth=7):
+    import total
     from total import write_total_sheet
+    period.set_period(*detect_period(df))         # 날짜 로직 기준 기간 설정
+    folders = month_folders()
+    if folders:
+        total.set_budget_folders(folders)         # 다월 예산 합산
     path.parent.mkdir(parents=True, exist_ok=True)
     with pd.ExcelWriter(path, engine="openpyxl", datetime_format="yyyy-mm-dd") as xw:
         df.to_excel(xw, sheet_name="통합", index=False)
@@ -84,11 +127,11 @@ def _reorder_by_brand(book):
     book._sheets = ordered
 
 
-def output_path(y, mth):
-    """출력 경로: output/통합_리포트_{데이터연월}_{생성일}.xlsx.
-    예) 8월 데이터를 7/31 생성 → 통합_리포트_2508_260731.xlsx (데이터 월 구분).
-    같은 조합 재생성 시 기존 파일을 덮어쓰지 않고 _ver.1, _ver.2 … 로 누적 보관."""
-    ym = f"{y}년{mth:02d}월"                       # 데이터 연월 (예: 2026년08월)
+def output_path():
+    """출력 경로: output/통합_리포트_{기간}_생성{YYMMDD}.xlsx.
+    기간 = period.label() (단일월 '2026년7월', 다월 '2026년6~7월').
+    period가 먼저 설정돼 있어야 함(main에서 set). 같은 조합 재생성 시 _ver.N 누적."""
+    ym = period.label().replace(" ", "")          # '2026년7월' 또는 '2026년6~7월'
     stamp = datetime.now().strftime("%y%m%d")
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     base = OUT_DIR / f"통합_리포트_{ym}_생성{stamp}.xlsx"
@@ -110,10 +153,11 @@ def detect_month(df):
 def main():
     df = build_unified()
     y, mth = detect_month(df)
-    out = output_path(y, mth)
+    period.set_period(*detect_period(df))         # 기간 먼저 설정(파일명·라벨용)
+    out = output_path()
     save_excel(df, out, y, mth)
     # 요약
-    print(f"대상 월: {y}년 {mth}월  (데이터에서 자동 감지)")
+    print(f"대상 기간: {period.label()}  ({period.start()} ~ {period.end()})")
     print("통합 시트 생성 완료:", out)
     print("  총 행수:", len(df))
     g = df.groupby("매체")[["광고비용", "GA구매", "GA구매수익"]].sum()

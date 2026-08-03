@@ -14,6 +14,7 @@ from total import (daily_frame, weekday_avg, _metrics, _metrics_from_sums, _div,
                    F_TITLE, F_SEC, F_COL, F_SUM, FILL_SEC, FILL_COL, FILL_SUM,
                    SAT_COLOR, SUN_COLOR, CENTER, LEFT, _put, BRAND_TITLE, WD_KR,
                    reg_cost_cell)
+import period
 
 BRAND_LOWER = {"MI": "mi", "IT": "it", "EBM": "ebm"}
 
@@ -43,17 +44,9 @@ def _filter(uni, brand, media, pattern):
     return uni[m]
 
 
-def week_periods(daily):
-    """주차별 기간 라벨 (mm/dd~mm/dd). daily_frame은 전월일 포함."""
-    out = {}
-    for wk in range(1, 6):
-        sub = daily[daily["주차"] == wk]
-        if len(sub):
-            a, b = sub["날짜"].min(), sub["날짜"].max()
-            out[wk] = f"{a.month:02d}/{a.day:02d}~{b.month:02d}/{b.day:02d}"
-        else:
-            out[wk] = ""
-    return out
+def week_periods(daily=None):
+    """주차별 기간 라벨 (mm/dd~mm/dd). period 기반(단일월이면 기존과 동일)."""
+    return period.week_periods()
 
 
 def _metric_row(ws, r, m, start_col=4, font=None, fill=None):
@@ -134,7 +127,7 @@ def write_media_single(ws, brand, title, media_disp, camp_disp, df_f, y, mth):
     _put(ws, r, 2, "■ 주간현황", font=F_SEC, fill=FILL_SEC); r += 1
     _hdr(ws, r, "주차", "기간"); r += 1
     wfirst = r
-    for wk in range(1, 6):
+    for wk in range(1, period.n_weeks() + 1):
         sub = daily[daily["주차"] == wk]
         m = _metrics_from_sums(sub["노출수"].sum(), sub["클릭수"].sum(), sub["집행예산"].sum(),
                                sub["전환수"].sum(), sub["매출"].sum(), sub["회원가입"].sum(),
@@ -225,7 +218,7 @@ def write_media_multi(ws, brand, title, media_disp, group_col, df_f, y, mth,
     _put(ws, r, 2, "■ 주간현황", font=F_SEC, fill=FILL_SEC); r += 1
     _hdr(ws, r, "주차", "기간"); r += 1
     wfirst = r
-    for wk in range(1, 6):
+    for wk in range(1, period.n_weeks() + 1):
         sub = daily[daily["주차"] == wk]
         m = _metrics_from_sums(sub["노출수"].sum(), sub["클릭수"].sum(), sub["집행예산"].sum(),
                                sub["전환수"].sum(), sub["매출"].sum(), sub["회원가입"].sum(),
@@ -495,7 +488,9 @@ def write_nsearch(ws, brand, df_f, y, mth):
     ws.merge_cells(start_row=rr, start_column=2, end_row=rr, end_column=3)
     _ns_row(ws, rr, 4, _metrics(df_f), sumrow="gray")
 
-    # 2. [상품별 주간 현황] (가로 블록)
+    # 2. [상품별 주간 현황] (가로 블록) — 주차 수는 기간에 따라 가변
+    nw = period.n_weeks()
+    wk_sum_r = 17 + nw                              # 주간 합계행(주차 17..16+nw 다음)
     _put(ws, 14, 2, "[상품별 주간 현황]", font=NS_F_SEC)
     for p, (label, pat) in enumerate(NS_PRODUCTS):
         c0 = 2 + p * BLOCK_W
@@ -503,17 +498,17 @@ def write_nsearch(ws, brand, df_f, y, mth):
         _ns_hdr(ws, 16, c0, "주차")
         for i, (h, _, _) in enumerate(NS_COLS):
             _put(ws, 16, c0 + 1 + i, h, font=NS_F_COL, fill=NS_FILL_COL, align=CENTER)
-        pdaily = daily_frame(prod_df(pat), y, mth)
-        for wk in range(1, 6):
+        pdaily = daily_frame(prod_df(pat))
+        for wk in range(1, nw + 1):
             sub = pdaily[pdaily["주차"] == wk]
             m = _metrics_from_sums(sub["노출수"].sum(), sub["클릭수"].sum(), sub["집행예산"].sum(),
                                    sub["전환수"].sum(), sub["매출"].sum(), sub["회원가입"].sum(),
                                    sub["세션수"].sum())
-            _put(ws, 16 + wk, c0, f"{mth}월 {wk}주", align=CENTER)
+            _put(ws, 16 + wk, c0, f"{period.week_month(wk)}월 {wk}주", align=CENTER)
             _ns_row(ws, 16 + wk, c0 + 1, m)
         # 블록 합계 (연파랑)
-        _put(ws, 22, c0, "합계", font=NS_F_SUM, fill=NS_FILL_SUM)
-        _ns_row(ws, 22, c0 + 1, _metrics(prod_df(pat)), sumrow="blue")
+        _put(ws, wk_sum_r, c0, "합계", font=NS_F_SUM, fill=NS_FILL_SUM)
+        _ns_row(ws, wk_sum_r, c0 + 1, _metrics(prod_df(pat)), sumrow="blue")
 
     # 3·4. [일자별 성과 · PC/MO] (가로 블록). 엠버서더는 모바일 전용 → MO에만.
     def daily_section(r0, device, products):
@@ -542,7 +537,7 @@ def write_nsearch(ws, brand, df_f, y, mth):
             sum_row = last + 1
         return sum_row                                   # 합계행 위치(다음 섹션 배치용)
     pc_products = [x for x in NS_PRODUCTS if x[0] != "엠버서더"]   # 엠버서더 모바일전용
-    pc_end = daily_section(24, "PC", pc_products)
+    pc_end = daily_section(wk_sum_r + 2, "PC", pc_products)  # 주간현황 합계 아래로
     mo_end = daily_section(pc_end + 2, "MO", NS_PRODUCTS)  # PC 합계 아래로(겹침 방지)
 
     # 전 셀 9pt 통일 (제목 16pt 유지) — 볼드/색/채움 보존

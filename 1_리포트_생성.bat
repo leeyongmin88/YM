@@ -15,39 +15,37 @@ for /d %%D in ("%~dp0Raw_*") do (
     echo   [!i!] %%~nxD
 )
 echo.
+echo   * 여러 달 통합 리포트는 1+2 처럼 +로 연결 (예: 6월+7월 통합)
 set /p CHOICE="  번호 선택 (그냥 Enter = 0, 기본 Raw): "
 if "%CHOICE%"=="" set CHOICE=0
 
-if "%CHOICE%"=="0" (
-    set "YM_RAW="
-    set "PICK=Raw (기본)"
-) else (
-    set "YM_RAW=!F%CHOICE%!"
-    set "PICK=!F%CHOICE%!"
-    if not defined YM_RAW (
-        echo.
-        echo   [오류] 잘못된 번호입니다. 다시 실행해주세요.
-        echo.
-        pause
-        exit /b
-    )
-    if not exist "%~dp0!YM_RAW!\" (
-        echo.
-        echo   [오류] !YM_RAW! 폴더를 찾을 수 없습니다.
-        echo.
-        pause
-        exit /b
+set "YM_RAW="
+set "PICK="
+for %%N in (%CHOICE:+= %) do (
+    if "%%N"=="0" (
+        set "PICK=!PICK! Raw(기본)"
+    ) else (
+        if defined F%%N (
+            if defined YM_RAW ( set "YM_RAW=!YM_RAW!;!F%%N!" ) else ( set "YM_RAW=!F%%N!" )
+            set "PICK=!PICK! !F%%N!"
+        ) else (
+            echo.
+            echo   [오류] %%N 번 폴더가 없습니다. 번호를 확인하고 다시 실행해주세요.
+            echo.
+            pause
+            exit /b
+        )
     )
 )
 
 echo.
-echo   ^> !PICK! 폴더로 리포트를 생성합니다...
+echo   ^> 대상:!PICK!
 echo.
 "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" "%~dp0pipeline\build.py"
 echo.
 echo ============================================
 echo   완료. output 폴더에서 파일을 확인하세요.
-echo   (파일명에 데이터 월이 표시됩니다)
+echo   (파일명에 대상 기간이 표시됩니다)
 echo   아무 키나 누르면 닫힙니다.
 echo ============================================
 pause >nul
