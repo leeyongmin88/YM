@@ -98,7 +98,7 @@ def set_budget_folders(folders):
     global ACTIVE_MEDIA, _BUD_LOOKUP
     merged, order = {}, []
     for fol in folders:
-        config.BUDGET_FILE = config.YM_ROOT / fol / "예산.xlsx"
+        config.BUDGET_FILE = config._budget_file(config.YM_ROOT / fol)
         fm = load_media_table()
         if not (fm and all(m is not None for _g, _l, m, _p, _b in fm)):
             continue
@@ -148,7 +148,8 @@ def _div(a, b):
 
 def _slice(df, media, pattern):
     m = df["매체"] == media
-    if pattern:
+    # 패턴이 통합매체명과 같으면(단일플랫폼 매체를 매체명으로 잘못 기입) 무시 → 매체 전체.
+    if pattern and str(pattern).strip().lower() != str(media).strip().lower():
         m &= df["캠페인"].str.contains(pattern, case=False, regex=False)
     return df[m]
 

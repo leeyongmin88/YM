@@ -38,7 +38,7 @@ def _read_folder(fol):
     import ingest, ga
     p = config.YM_ROOT / fol
     config.RAW_DIR = p
-    config.BUDGET_FILE = p / "예산.xlsx"
+    config.BUDGET_FILE = config._budget_file(p)
     ingest.RAW_DIR = p
     ingest.JEONGAEK = config._build_jeongaek()     # 그 달 정액 예산
     ga.GA_DIR = p / "GA"

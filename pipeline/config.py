@@ -14,7 +14,12 @@ RAW_DIR = YM_ROOT / (os.environ.get("YM_RAW") or "Raw")
 OUT_DIR = YM_ROOT / "output"
 
 # --- 월예산 파일 (매월 사용자가 이 엑셀만 수정하면 집행율에 반영) ---
-BUDGET_FILE = RAW_DIR / "예산.xlsx"
+# 파일명에 '예산'이 들어간 첫 .xlsx를 사용 (예: 예산.xlsx, 26년8월 예산.xlsx 등 자유).
+def _budget_file(folder):
+    return next(iter(sorted(folder.glob("*예산*.xlsx"))), folder / "예산.xlsx")
+
+
+BUDGET_FILE = _budget_file(RAW_DIR)
 
 
 def _num(v):
