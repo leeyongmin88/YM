@@ -14,8 +14,12 @@ from total import (ACTIVE_MEDIA, _slice, _metrics, _put, F_TITLE, F_SEC, F_COL, 
 
 
 def _bs_budget(brand):
-    """브랜드별 (매체, 패턴정규화) → 월예산 (ACTIVE_MEDIA=파일 우선). _NONE_(신규매체) 제외."""
-    return {(m, (p or "").lstrip("_")): b.get(brand, 0)
+    """브랜드별 (매체, 패턴정규화) → 월예산 (ACTIVE_MEDIA=파일 우선). _NONE_(신규매체) 제외.
+    패턴이 매체명과 같으면(단일플랫폼 매체를 매체명으로 기입) 빈칸으로 정규화 → BS_MEDIA와 매칭."""
+    def _np(m, p):
+        p = (p or "").lstrip("_")
+        return "" if p.lower() == str(m).lower() else p
+    return {(m, _np(m, p)): b.get(brand, 0)
             for g, l, m, p, b in ACTIVE_MEDIA if m != "_NONE_"}
 
 
