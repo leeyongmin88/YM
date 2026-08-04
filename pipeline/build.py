@@ -7,6 +7,7 @@
 import warnings
 warnings.simplefilter("ignore")
 import os
+import re
 import calendar
 from datetime import datetime, date
 import pandas as pd
@@ -54,16 +55,36 @@ def build_unified():
         df = join_ga(combine_ads())
     df = df[UNIFIED_ORDER].copy()
     df = df.sort_values(["매체", "브랜드", "캠페인", "광고그룹", "광고(소재)", "날짜"]).reset_index(drop=True)
+    # 기간 설정 + 기간 밖 데이터 제외(원본에 다른 달 섞여도 폴더 지정 월만).
+    period.set_period(*detect_period(df))
+    df = df[(df["날짜"] >= pd.Timestamp(period.start())) &
+            (df["날짜"] <= pd.Timestamp(period.end()))].reset_index(drop=True)
     return df
 
 
+def _folder_months(folders):
+    """폴더명(Raw_N_YYYY_MM …)에서 (연,월) 추출. 없으면 빈 리스트."""
+    out = []
+    for f in folders or []:
+        m = re.search(r"(\d{4})[_-](\d{1,2})\s*$", str(f))
+        if m:
+            out.append((int(m.group(1)), int(m.group(2))))
+    return out
+
+
 def detect_period(df):
-    """리포트 기간 = 데이터 최소월 1일 ~ 최대월 말일.
-    단일월이면 그 달 전체(회귀 안전), 다월이면 연속 span(예: 6/1~7/31)."""
+    """리포트 기간 = 선택 폴더가 지정한 월(들). 단일 폴더=그 달, 다중(+)=여러 달 span.
+    폴더명에 월이 없으면(기본 Raw 등) 데이터 최소~최대월로 폴백."""
+    env = os.environ.get("YM_RAW", "")
+    folders = month_folders() or ([env] if env else [])
+    months = _folder_months(folders)
+    if months:
+        y1, m1 = min(months)
+        y2, m2 = max(months)
+        return date(y1, m1, 1), date(y2, m2, calendar.monthrange(y2, m2)[1])
     dmin, dmax = df["날짜"].min().date(), df["날짜"].max().date()
-    start = date(dmin.year, dmin.month, 1)
-    end = date(dmax.year, dmax.month, calendar.monthrange(dmax.year, dmax.month)[1])
-    return start, end
+    return (date(dmin.year, dmin.month, 1),
+            date(dmax.year, dmax.month, calendar.monthrange(dmax.year, dmax.month)[1]))
 
 
 def save_excel(df, path, y=2026, mth=7):
