@@ -273,19 +273,26 @@ READERS = [read_meta, read_google, read_kko, read_criteo, read_rtb,
            read_dable, read_tiktok, read_toss]
 
 
-def build_jeongaek(date_min, date_max):
-    days_in_month = calendar.monthrange(date_min.year, date_min.month)[1]
-    dates = pd.date_range(date_min.replace(day=1), date_max, freq="D")
+def build_jeongaek(year, month):
+    """정액을 그달 1일~[과거월=말일 / 진행월=어제]까지 매일 budget/그달일수씩 배분.
+    → 완료된 달=전액, 진행 중인 달=경과일수 비례(시간 기반 고정비, 광고데이터 유무 무관)."""
+    days_in_month = calendar.monthrange(year, month)[1]
+    start = pd.Timestamp(year, month, 1)
+    month_end = pd.Timestamp(year, month, days_in_month)
+    yesterday = pd.Timestamp.now().normalize() - pd.Timedelta(days=1)
+    end = min(month_end, yesterday)                  # 진행 중인 달이면 어제까지만 누적
     out = []
-    for camp, (brand, key, budget) in JEONGAEK.items():
-        daily = budget / days_in_month
-        for d in dates:
-            out.append(["Naver SA", brand, camp, "정액", "정액", d.normalize(),
-                        daily, 0.0, 0.0, key])
+    if end >= start:
+        for camp, (brand, key, budget) in JEONGAEK.items():
+            daily = budget / days_in_month
+            for d in pd.date_range(start, end, freq="D"):
+                out.append(["Naver SA", brand, camp, "정액", "정액", d.normalize(),
+                            daily, 0.0, 0.0, key])
     return pd.DataFrame(out, columns=STD)
 
 
-def combine_ads():
+def combine_ads(target=None):
+    """target=(연,월)이면 그 달 기준으로 정액 배분. 없으면 데이터 최소월 기준."""
     parts = [fn() for fn in READERS]
     df = pd.concat(parts, ignore_index=True)
     df["날짜"] = pd.to_datetime(df["날짜"], errors="coerce")
@@ -295,7 +302,8 @@ def combine_ads():
     df = df[df["날짜"] < today].reset_index(drop=True)
     if df.empty:
         raise SystemExit("실행 당일 데이터를 제외하니 남은 데이터가 없습니다. (전일 이전 RAW가 있는지 확인하세요)")
-    jg = build_jeongaek(df["날짜"].min(), df["날짜"].max())
+    y, m = target if target else (df["날짜"].min().year, df["날짜"].min().month)
+    jg = build_jeongaek(y, m)
     df = pd.concat([df, jg], ignore_index=True)
     df["날짜키"] = df["날짜"].dt.strftime("%Y%m%d")
     # 소재 단위 집계 (같은 소재가 여러 광고세트로 쪼개진 경우 합산 → GA 중복부여 방지)

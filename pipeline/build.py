@@ -33,9 +33,15 @@ def month_folders():
     return None
 
 
+def _folder_ym(name):
+    """폴더명(…YYYY_MM)에서 (연,월) 추출. 없으면 None."""
+    m = re.search(r"(\d{4})[_-](\d{1,2})\s*$", str(name))
+    return (int(m.group(1)), int(m.group(2))) if m else None
+
+
 def _read_folder(fol):
     """한 월 폴더(fol)를 RAW+GA+정액까지 읽어 통합 DataFrame 반환.
-    모듈 전역(RAW_DIR·JEONGAEK·GA_DIR)을 해당 폴더로 재바인딩."""
+    모듈 전역(RAW_DIR·JEONGAEK·GA_DIR)을 해당 폴더로 재바인딩. 정액은 폴더 월 기준."""
     import ingest, ga
     p = config.YM_ROOT / fol
     config.RAW_DIR = p
@@ -43,7 +49,7 @@ def _read_folder(fol):
     ingest.RAW_DIR = p
     ingest.JEONGAEK = config._build_jeongaek()     # 그 달 정액 예산
     ga.GA_DIR = p / "GA"
-    return join_ga(combine_ads())
+    return join_ga(combine_ads(_folder_ym(fol)))
 
 
 def build_unified():
@@ -52,7 +58,7 @@ def build_unified():
     if folders:
         df = pd.concat([_read_folder(f) for f in folders], ignore_index=True)
     else:
-        df = join_ga(combine_ads())
+        df = join_ga(combine_ads(_folder_ym(os.environ.get("YM_RAW", ""))))
     df = df[UNIFIED_ORDER].copy()
     df = df.sort_values(["매체", "브랜드", "캠페인", "광고그룹", "광고(소재)", "날짜"]).reset_index(drop=True)
     # 기간 설정 + 기간 밖 데이터 제외(원본에 다른 달 섞여도 폴더 지정 월만).
