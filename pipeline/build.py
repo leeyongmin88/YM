@@ -110,6 +110,9 @@ def save_excel(df, path, y=2026, mth=7):
         for brand in ["MI", "IT", "EBM"]:
             wsb = xw.book.create_sheet(f"{brand}_Total")
             write_total_sheet(wsb, brand, df[df["브랜드"] == brand], y, mth)
+        # 월별 매체 총 누적 + 증감 (통합=다월일 때만 생성)
+        from monthly import write_monthly_sheets
+        write_monthly_sheets(xw.book, df)
         # ●광고비집행현황
         from exec_report import write_exec_report
         write_exec_report(xw.book.create_sheet("●광고비집행현황"), df, y, mth)
@@ -136,7 +139,7 @@ def save_excel(df, path, y=2026, mth=7):
 def _reorder_by_brand(book):
     """시트를 브랜드 순서로 정렬 (참고파일 방식): 통합 → MI/EBM/IT 각 브랜드 블록."""
     brand_order = ["MI", "EBM", "IT"]
-    suffix_order = ["Total", "N검색", "구글SA", "피맥스_리포트", "K디스", "크리테오",
+    suffix_order = ["Total", "월별누적", "N검색", "구글SA", "피맥스_리포트", "K디스", "크리테오",
                     "RTB", "메타_성과형", "메타_브랜딩형", "N디스", "데이블", "틱톡", "토스"]
     desired = (["통합", "리포트 추가 요청", "●광고비집행현황", "브랜드 종합", "통합_캠페인일자별",
                 "통합_ENG 캠페인",
