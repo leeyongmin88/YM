@@ -55,10 +55,16 @@ def build_flat(uni):
         camp=("캠페인", "first")).reset_index()
     rows = []
     for _, r in g.iterrows():
+        jimyeon = _jimyeon(r["매체"], r["광고그룹"])
+        # 신규 3매체(Toss/TikTok/Dable)는 유형=성과형·구분=일반 고정
+        if jimyeon in ("Toss", "TikTok", "Dable"):
+            yutype, gubun = "성과형", "일반"
+        else:
+            yutype, gubun = _type(r["camp"]), _gubun(r["광고그룹"])
         rows.append({
             "주차": excel_weeknum2(r["날짜"].date()), "날짜": r["날짜"], "브랜드": r["브랜드"],
-            "유형": _type(r["camp"]), "구분": _gubun(r["광고그룹"]),
-            "광고그룹": r["광고그룹"], "지면": _jimyeon(r["매체"], r["광고그룹"]),
+            "유형": yutype, "구분": gubun,
+            "광고그룹": r["광고그룹"], "지면": jimyeon,
             "노출수": r["imp"], "클릭수": r["clk"], "클릭률": _div(r["clk"], r["imp"]),
             "클릭당비용": _div(r["cost"], r["clk"]), "집행예산": r["cost"],
             "전환율": _div(r["cv"], r["clk"]), "거래수": r["cv"], "수익": r["rev"],
