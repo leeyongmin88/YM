@@ -287,7 +287,6 @@ MULTI_SHEETS = [
 # 단일캠페인형 시트 정의: (접미사, 제목템플릿, 매체표시, 캠페인표시템플릿, 매체, 패턴, 대상브랜드)
 SINGLE_SHEETS = [
     ("구글SA", "{T} 구글 SA 리포트", "google", "GGL_{B}_SA_pf_cpc", "Google", "cpc", ["MI", "IT", "EBM"]),
-    ("피맥스_리포트", "{T} 피맥스 리포트", "google", "GGL_{B}_SA_pf_pmax", "Google", "pmax", ["MI", "IT", "EBM"]),
     ("RTB", "{T} RTB 리포트", "rtbhouse", "{B}_pf", "RTB", "", ["MI", "IT"]),
 ]
 
@@ -350,6 +349,14 @@ def add_media_sheets(book, uni, y, mth):
         res = write_media_multi(book.create_sheet(sheet), b, f"{BRAND_TITLE[b]} 메타 성과형(pf) 리포트",
                                 "meta", "유형", df_f, y, mth, per_group_daily=True)
         reg_cost_cell(b, "Meta", "pf", f"'{sheet}'!{_COST_COL}{res['total_daily']}")
+    # 피맥스 (구글 pmax): 캠페인별 분리 (예: pmaxshopping / pmaxshopping_Traffic)
+    for b in ["MI", "IT", "EBM"]:
+        df_f = _filter(uni, b, "Google", "pmax").copy()
+        df_f["유형"] = df_f["캠페인"].map(pmax_type)
+        sheet = f"{b}_피맥스_리포트"
+        res = write_media_multi(book.create_sheet(sheet), b, f"{BRAND_TITLE[b]} 피맥스 리포트",
+                                "google", "유형", df_f, y, mth, per_group_daily=True)
+        reg_cost_cell(b, "Google", "pmax", f"'{sheet}'!{_COST_COL}{res['total_daily']}")
     # N검색 (가로 다중블록 + PC/MO) — 일자별 합계 = PC블록 합계 + MO블록 합계
     for b in ["MI", "IT", "EBM"]:
         df_f = _filter(uni, b, "Naver SA", "")
@@ -375,6 +382,13 @@ def add_media_sheets(book, uni, y, mth):
 
 def criteo_type(camp):
     """CRI_MI_DA_pf_LF → 'LF', CRI_EBM_DA_pf_HYBRID → 'HYBRID'"""
+    c = str(camp)
+    return c.split("_pf_")[-1] if "_pf_" in c else c
+
+
+def pmax_type(camp):
+    """피맥스 캠페인별 라벨: GGL_IT_SA_pf_pmaxshopping → 'pmaxshopping',
+    ..._pmaxshopping_Traffic → 'pmaxshopping_Traffic'."""
     c = str(camp)
     return c.split("_pf_")[-1] if "_pf_" in c else c
 
