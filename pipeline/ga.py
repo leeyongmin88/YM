@@ -93,17 +93,33 @@ def sa_campaign(sess_camp, device):
 def build_ga_sales():
     """(매칭키, 날짜키) → [구매, 구매수익, 세션]. DA/검색 + Naver SA 통합."""
     agg = {}
-    # (1) DA·검색 광고매출
+    has_g = (GA_DIR / "구글매출.csv").exists()        # 구글이 별도 파일로 분리됐나
+    # (1) DA·검색 광고매출 (구글 전용파일 있으면 여기선 구글 스킵 → 중복 방지)
     df = _read_ga("광고매출.csv")
     df = df[df["세션 소스/매체"].str.strip() != ""]
     for _, r in df.iterrows():
         plat = platform_of(r["세션 소스/매체"])
+        if has_g and plat == "Google":
+            continue
         key = ga_key(plat, r["세션 캠페인"], r["세션 수동 광고 콘텐츠"], r["세션 캠페인 ID"])
         if not key:
             continue
         dk = str(r["날짜"]).strip()
         a = agg.setdefault((key, dk), [0.0, 0.0, 0.0])
         a[0] += to_num(r["구매"]); a[1] += to_num(r["구매 수익"]); a[2] += to_num(r["세션수"])
+    # (1b) 구글 매출 (별도 분리 파일; 캠페인 컬럼명이 '세션 Google Ads 캠페인')
+    if has_g:
+        gdf = _read_ga("구글매출.csv")
+        gdf = gdf[gdf["세션 소스/매체"].str.strip() != ""]
+        cc = "세션 Google Ads 캠페인" if "세션 Google Ads 캠페인" in gdf.columns else "세션 캠페인"
+        for _, r in gdf.iterrows():
+            key = ga_key(platform_of(r["세션 소스/매체"]), r[cc],
+                         r["세션 수동 광고 콘텐츠"], r["세션 캠페인 ID"])
+            if not key:
+                continue
+            dk = str(r["날짜"]).strip()
+            a = agg.setdefault((key, dk), [0.0, 0.0, 0.0])
+            a[0] += to_num(r["구매"]); a[1] += to_num(r["구매 수익"]); a[2] += to_num(r["세션수"])
     # (2) Naver SA 매출
     sa = _read_ga("네이버SA매출.csv")
     sa = sa[sa["세션 소스/매체"].str.strip() != ""]
@@ -121,17 +137,33 @@ def build_ga_sales():
 def build_ga_signup():
     """(매칭키, 날짜키) → [회원가입수, 회원가입세션]. DA/검색 + Naver SA."""
     agg = {}
-    # (1) DA·검색 회원가입: 회원가입수=이벤트수, 세션=세션수
+    has_g = (GA_DIR / "구글가입.csv").exists()        # 구글이 별도 파일로 분리됐나
+    # (1) DA·검색 회원가입: 회원가입수=이벤트수, 세션=세션수 (구글 전용파일 있으면 구글 스킵)
     df = _read_ga("광고가입.csv")
     df = df[df["세션 소스/매체"].str.strip() != ""]
     for _, r in df.iterrows():
         plat = platform_of(r["세션 소스/매체"])
+        if has_g and plat == "Google":
+            continue
         key = ga_key(plat, r["세션 캠페인"], r["세션 수동 광고 콘텐츠"], r["세션 캠페인 ID"])
         if not key:
             continue
         dk = str(r["날짜"]).strip()
         a = agg.setdefault((key, dk), [0.0, 0.0])
         a[0] += to_num(r["이벤트 수"]); a[1] += to_num(r["세션수"])
+    # (1b) 구글 회원가입 (별도 분리 파일)
+    if has_g:
+        gdf = _read_ga("구글가입.csv")
+        gdf = gdf[gdf["세션 소스/매체"].str.strip() != ""]
+        cc = "세션 Google Ads 캠페인" if "세션 Google Ads 캠페인" in gdf.columns else "세션 캠페인"
+        for _, r in gdf.iterrows():
+            key = ga_key(platform_of(r["세션 소스/매체"]), r[cc],
+                         r["세션 수동 광고 콘텐츠"], r["세션 캠페인 ID"])
+            if not key:
+                continue
+            dk = str(r["날짜"]).strip()
+            a = agg.setdefault((key, dk), [0.0, 0.0])
+            a[0] += to_num(r["이벤트 수"]); a[1] += to_num(r["세션수"])
     # (2) Naver SA 회원가입 (세션수만 존재 → 가입수=세션=세션수)
     sa = _read_ga("네이버SA가입.csv")
     sa = sa[sa["세션 소스/매체"].str.strip() != ""]
