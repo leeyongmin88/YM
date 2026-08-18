@@ -16,7 +16,9 @@ OUT_DIR = YM_ROOT / "output"
 # --- 월예산 파일 (매월 사용자가 이 엑셀만 수정하면 집행율에 반영) ---
 # 파일명에 '예산'이 들어간 첫 .xlsx를 사용 (예: 예산.xlsx, 26년8월 예산.xlsx 등 자유).
 def _budget_file(folder):
-    return next(iter(sorted(folder.glob("*예산*.xlsx"))), folder / "예산.xlsx")
+    # ~$ 로 시작하는 엑셀 잠금파일은 제외 (파일 열려있을 때 오인식 방지)
+    hits = sorted(f for f in folder.glob("*예산*.xlsx") if not f.name.startswith("~$"))
+    return hits[0] if hits else folder / "예산.xlsx"
 
 
 BUDGET_FILE = _budget_file(RAW_DIR)
