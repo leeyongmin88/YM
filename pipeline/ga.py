@@ -215,8 +215,11 @@ def join_ga(ad_df):
     signup = build_ga_signup(ad_ct_bt)
     K, L, M, P, Q, status = [], [], [], [], [], []
     seen_s, seen_g = set(), set()          # (매칭키,날짜)당 GA 1회만 부여
+    templ = {}                             # 매칭키 → 대표 광고행(지연전환 합성행 템플릿)
     for _, r in ad_df.iterrows():
         key, dk, media = r["매칭키"], r["날짜키"], r["매체"]
+        if key and key not in templ:
+            templ[key] = r
         s = sales.get((key, dk)) if (key, dk) not in seen_s else None
         g = signup.get((key, dk)) if (key, dk) not in seen_g else None
         if s:
@@ -239,6 +242,27 @@ def join_ga(ad_df):
     out["GA구매"], out["GA구매수익"], out["GA세션"] = K, L, M
     out["회원가입수"], out["회원가입세션"] = P, Q
     out["매핑상태"] = status
+    # 지연전환: 광고에 있는 캠페인(키)인데 그날 광고행이 없어 미매칭된 GA →
+    # 세션일에 '광고비 0' 합성행으로 추가(매출은 반영, 비용 0). 광고에 없는 키·오가닉은 제외.
+    extra = []
+    for (key, dk) in set(sales) | set(signup):
+        if key not in templ or (key, dk) in seen_s or (key, dk) in seen_g:
+            continue
+        s, g = sales.get((key, dk)), signup.get((key, dk))
+        row = templ[key].to_dict()
+        row["날짜"] = pd.to_datetime(dk, format="%Y%m%d")
+        row["날짜키"] = dk
+        row["광고비_raw"] = 0.0; row["광고비용"] = 0.0
+        row["노출수"] = 0.0; row["클릭수"] = 0.0
+        row["GA구매"] = s[0] if s else 0.0
+        row["GA구매수익"] = s[1] if s else 0.0
+        row["GA세션"] = s[2] if s else 0.0
+        row["회원가입수"] = g[0] if g else 0.0
+        row["회원가입세션"] = g[1] if g else 0.0
+        row["매핑상태"] = "지연전환(합성)"
+        extra.append(row)
+    if extra:
+        out = pd.concat([out, pd.DataFrame(extra)], ignore_index=True)
     return out
 
 
