@@ -54,8 +54,8 @@ def _criteo_key(ga_camp):
 
 def ga_key(plat, camp, content, camp_id, ad_ct_bt=None):
     """GA행 → 통합 매칭키 (매체별 규칙). 미매칭이면 ''.
-    ad_ct_bt={CT코드:브랜드유형} — 크리테오는 CT코드가 있는 행만 매칭: 광고 소재에 있으면
-    그 소재의 실제 유형, 광고에 없으면 캠페인명(브랜드+유형). CT 없으면 미매칭."""
+    ad_ct_bt={CT코드:브랜드유형} — 크리테오는 CT가 광고 소재에 있으면 그 소재의 실제 유형,
+    없으면(NOT SET 포함) 캠페인명(브랜드+유형)으로 매칭."""
     camp = str(camp).strip()
     if plat == "Meta":
         return _code(content, "MT")                # GA 콘텐츠의 MT코드
@@ -69,11 +69,9 @@ def ga_key(plat, camp, content, camp_id, ad_ct_bt=None):
         return camp if camp.upper().startswith("GGL") else ""
     if plat == "Criteo":
         ct = _code(camp_id, "CT") or _code(content, "CT")   # 세션캠페인ID/콘텐츠의 CT
-        if not ct:
-            return ""                               # CT코드 없으면 미매칭(캠페인명 단독 매칭 안함)
-        if ad_ct_bt and ct in ad_ct_bt:
+        if ct and ad_ct_bt and ct in ad_ct_bt:
             return ad_ct_bt[ct]                     # CT가 광고 소재에 있으면 그 소재의 실제 유형
-        return _criteo_key(camp)                    # CT는 있으나 광고에 없으면 캠페인명(브랜드+유형)
+        return _criteo_key(camp)                    # 없으면(NOT SET 포함) 캠페인명(브랜드+유형)
     if plat == "RTB":
         return camp.split("_")[0].upper()          # it_rtb_re → IT
     if plat == "KKO":
