@@ -38,6 +38,19 @@ def platform_of(source_medium):
     return ""
 
 
+# 크리테오 광고 유형 (캠페인 _pf_ 뒷부분). 신규 유형 생기면 여기 추가.
+_CRI_TYPES = ("hybrid", "cca", "lf")
+
+
+def _criteo_key(ga_camp):
+    """GA 크리테오 캠페인(it_lf_re, ebm_hybrid_new …) → '브랜드_유형'(IT_LF). 없으면 ''.
+    광고(CRI_IT_DA_pf_LF)와 캠페인(브랜드+유형) 단위로 매칭 → 소재코드 누락돼도 잡힘."""
+    p = str(ga_camp).lower().replace("/", "_").split("_")
+    brand = next((x for x in p if x in ("mi", "it", "ebm")), "")
+    typ = next((x for x in p if x in _CRI_TYPES), "")
+    return f"{brand}_{typ}".upper() if brand and typ else ""
+
+
 def ga_key(plat, camp, content, camp_id):
     """GA행 → 통합 매칭키 (매체별 규칙). 미매칭이면 ''"""
     camp = str(camp).strip()
@@ -52,7 +65,7 @@ def ga_key(plat, camp, content, camp_id):
     if plat == "Google":
         return camp if camp.upper().startswith("GGL") else ""
     if plat == "Criteo":
-        return _code(camp_id, "CT") or _code(content, "CT")   # 캠페인ID 없으면 콘텐츠에서
+        return _criteo_key(camp)                    # GA 캠페인(it_lf_re…) → '브랜드_유형'(IT_LF)
     if plat == "RTB":
         return camp.split("_")[0].upper()          # it_rtb_re → IT
     if plat == "KKO":

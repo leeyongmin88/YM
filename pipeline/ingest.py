@@ -143,7 +143,8 @@ def read_criteo():
         if r[0] is None:
             continue
         camp = str(r[1] or ""); cre = str(r[5] or "")
-        key = _code(cre, "CT") or camp
+        typ = camp.split("_pf_")[-1] if "_pf_" in camp else ""
+        key = f"{brand_from(camp)}_{typ}".upper()      # 브랜드+유형(캠페인) 단위 매칭
         out.append(["Criteo", brand_from(camp), camp, str(r[3] or ""), cre,
                     to_date(r[0]), to_num(r[6]), to_num(r[7]), to_num(r[8]), key])
     return pd.DataFrame(out, columns=STD)
