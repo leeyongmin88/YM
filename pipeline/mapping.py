@@ -16,7 +16,7 @@ from total import _put, F_TITLE, F_COL, FILL_COL, F_SUM, FILL_SUM, CENTER, LEFT
 _DA_REASON = {
     "Meta":   "키 미식별 · 콘텐츠에 MT코드 없음",
     "Google": "키 미식별 · 캠페인이 GGL_ 로 시작 안 함",
-    "Criteo": "키 미식별 · CT코드 없음/광고소재 미존재(캠페인명 매칭 안함)",
+    "Criteo": "키 미식별 · CT코드 없음(캠페인명 단독 매칭 안함)",
     "KKO":    "키 미식별 · KK코드 없음 & 카탈로그 매핑 아님",
     "Naver":  "키 미식별 · NG코드 없음 & advoost 아님",
     "RTB":    "키 미식별",
