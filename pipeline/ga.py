@@ -51,8 +51,10 @@ def _criteo_key(ga_camp):
     return f"{brand}_{typ}".upper() if brand and typ else ""
 
 
-def ga_key(plat, camp, content, camp_id):
-    """GA행 → 통합 매칭키 (매체별 규칙). 미매칭이면 ''"""
+def ga_key(plat, camp, content, camp_id, ad_ct_bt=None):
+    """GA행 → 통합 매칭키 (매체별 규칙). 미매칭이면 ''.
+    ad_ct_bt={CT코드:브랜드유형} — 크리테오에서 소재코드가 광고에 있으면 그 소재의 실제
+    유형으로 매칭(캠페인명보다 정확), 없으면 캠페인명 기반."""
     camp = str(camp).strip()
     if plat == "Meta":
         return _code(content, "MT")                # GA 콘텐츠의 MT코드
@@ -65,7 +67,10 @@ def ga_key(plat, camp, content, camp_id):
     if plat == "Google":
         return camp if camp.upper().startswith("GGL") else ""
     if plat == "Criteo":
-        return _criteo_key(camp)                    # GA 캠페인(it_lf_re…) → '브랜드_유형'(IT_LF)
+        ct = _code(camp_id, "CT") or _code(content, "CT")   # 세션캠페인ID/콘텐츠의 CT
+        if ct and ad_ct_bt and ct in ad_ct_bt:
+            return ad_ct_bt[ct]                     # 소재코드가 광고에 있으면 그 소재의 실제 유형
+        return _criteo_key(camp)                    # 없으면 GA 캠페인명(it_lf_re…) 기반
     if plat == "RTB":
         return camp.split("_")[0].upper()          # it_rtb_re → IT
     if plat == "KKO":
@@ -103,7 +108,7 @@ def sa_campaign(sess_camp, device):
     return ""
 
 
-def build_ga_sales():
+def build_ga_sales(ad_ct_bt=None):
     """(매칭키, 날짜키) → [구매, 구매수익, 세션]. DA/검색 + Naver SA 통합."""
     agg = {}
     has_g = (GA_DIR / "구글매출.csv").exists()        # 구글이 별도 파일로 분리됐나
@@ -114,7 +119,7 @@ def build_ga_sales():
         plat = platform_of(r["세션 소스/매체"])
         if has_g and plat == "Google":
             continue
-        key = ga_key(plat, r["세션 캠페인"], r["세션 수동 광고 콘텐츠"], r["세션 캠페인 ID"])
+        key = ga_key(plat, r["세션 캠페인"], r["세션 수동 광고 콘텐츠"], r["세션 캠페인 ID"], ad_ct_bt)
         if not key:
             continue
         dk = str(r["날짜"]).strip()
@@ -127,7 +132,7 @@ def build_ga_sales():
         cc = "세션 Google Ads 캠페인" if "세션 Google Ads 캠페인" in gdf.columns else "세션 캠페인"
         for _, r in gdf.iterrows():
             key = ga_key(platform_of(r["세션 소스/매체"]), r[cc],
-                         r["세션 수동 광고 콘텐츠"], r["세션 캠페인 ID"])
+                         r["세션 수동 광고 콘텐츠"], r["세션 캠페인 ID"], ad_ct_bt)
             if not key:
                 continue
             dk = str(r["날짜"]).strip()
@@ -147,7 +152,7 @@ def build_ga_sales():
     return agg
 
 
-def build_ga_signup():
+def build_ga_signup(ad_ct_bt=None):
     """(매칭키, 날짜키) → [회원가입수, 회원가입세션]. DA/검색 + Naver SA."""
     agg = {}
     has_g = (GA_DIR / "구글가입.csv").exists()        # 구글이 별도 파일로 분리됐나
@@ -158,7 +163,7 @@ def build_ga_signup():
         plat = platform_of(r["세션 소스/매체"])
         if has_g and plat == "Google":
             continue
-        key = ga_key(plat, r["세션 캠페인"], r["세션 수동 광고 콘텐츠"], r["세션 캠페인 ID"])
+        key = ga_key(plat, r["세션 캠페인"], r["세션 수동 광고 콘텐츠"], r["세션 캠페인 ID"], ad_ct_bt)
         if not key:
             continue
         dk = str(r["날짜"]).strip()
@@ -171,7 +176,7 @@ def build_ga_signup():
         cc = "세션 Google Ads 캠페인" if "세션 Google Ads 캠페인" in gdf.columns else "세션 캠페인"
         for _, r in gdf.iterrows():
             key = ga_key(platform_of(r["세션 소스/매체"]), r[cc],
-                         r["세션 수동 광고 콘텐츠"], r["세션 캠페인 ID"])
+                         r["세션 수동 광고 콘텐츠"], r["세션 캠페인 ID"], ad_ct_bt)
             if not key:
                 continue
             dk = str(r["날짜"]).strip()
@@ -192,10 +197,22 @@ def build_ga_signup():
     return agg
 
 
+def criteo_ct_bt(ad_df):
+    """광고 크리테오 {CT코드: 브랜드유형} — 소재코드가 어느 유형에 속하는지."""
+    cri = ad_df[ad_df["매체"] == "Criteo"]
+    out = {}
+    for _, r in cri.iterrows():
+        ct = _code(str(r["광고(소재)"]), "CT")
+        if ct:
+            out[ct] = r["매칭키"]
+    return out
+
+
 def join_ga(ad_df):
     """통합 광고행에 GA(구매/수익/세션 + 회원가입) 조인 + 매핑상태."""
-    sales = build_ga_sales()
-    signup = build_ga_signup()
+    ad_ct_bt = criteo_ct_bt(ad_df)         # 크리테오 소재코드→유형 (CT매칭 보강)
+    sales = build_ga_sales(ad_ct_bt)
+    signup = build_ga_signup(ad_ct_bt)
     K, L, M, P, Q, status = [], [], [], [], [], []
     seen_s, seen_g = set(), set()          # (매칭키,날짜)당 GA 1회만 부여
     for _, r in ad_df.iterrows():

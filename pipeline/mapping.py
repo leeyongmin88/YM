@@ -7,7 +7,7 @@
 """
 import warnings
 warnings.simplefilter("ignore")
-from ga import _read_ga, platform_of, ga_key, sa_campaign
+from ga import _read_ga, platform_of, ga_key, sa_campaign, criteo_ct_bt
 from ingest import to_num
 from config import BRANDS
 from total import _put, F_TITLE, F_COL, FILL_COL, F_SUM, FILL_SUM, CENTER, LEFT
@@ -39,7 +39,7 @@ def _nsa_reason(sess_camp):
 DA_GROUPS = ["매핑됨", "광고 미매칭", "키 미식별", "매체 대응없음"]
 
 
-def _collect_da(name, metrics, ad_kd, ad_k):
+def _collect_da(name, metrics, ad_kd, ad_k, ad_ct_bt=None):
     """광고매출/광고가입 미맵핑 행 수집 + 요약.
     ad_kd=광고 (매칭키,날짜키) 집합, ad_k=광고 매칭키 집합.
     매핑됨=키추출+광고매칭 / 광고미매칭=키추출됐으나 광고에 없음 / 키미식별 / 매체대응없음."""
@@ -51,7 +51,7 @@ def _collect_da(name, metrics, ad_kd, ad_k):
     for _, r in df.iterrows():
         plat = platform_of(r["세션 소스/매체"])
         cid = r["세션 캠페인 ID"] if has_cid else ""
-        key = ga_key(plat, r["세션 캠페인"], r["세션 수동 광고 콘텐츠"], cid)
+        key = ga_key(plat, r["세션 캠페인"], r["세션 수동 광고 콘텐츠"], cid, ad_ct_bt)
         dk = str(r["날짜"]).strip()
         vals = [to_num(r.get(m, 0)) for m in metrics]
         sess = to_num(r.get("세션수", 0))
@@ -110,10 +110,11 @@ def write_mapping_sheets(book, df, y, mth):
     # 광고 실제 매칭키(날짜별) 집합 → GA가 광고에 붙었는지 판정용
     ad_kd = set(zip(df["매칭키"].astype(str), df["날짜키"].astype(str)))
     ad_k = set(df["매칭키"].astype(str))
+    ad_ct_bt = criteo_ct_bt(df)            # 크리테오 소재코드→유형 (통합 매칭과 동일)
     # 광고매출 (구매/수익/세션)
-    sales_rows, sales_sum = _collect_da("광고매출.csv", ["구매", "구매 수익", "세션수"], ad_kd, ad_k)
+    sales_rows, sales_sum = _collect_da("광고매출.csv", ["구매", "구매 수익", "세션수"], ad_kd, ad_k, ad_ct_bt)
     # 광고가입 (이벤트수=회원가입/세션)
-    signup_rows, _ = _collect_da("광고가입.csv", ["이벤트 수", "세션수"], ad_kd, ad_k)
+    signup_rows, _ = _collect_da("광고가입.csv", ["이벤트 수", "세션수"], ad_kd, ad_k, ad_ct_bt)
     # 네이버SA매출 (구매/수익/세션)
     nsa_rows = _collect_nsa("네이버SA매출.csv", ["구매", "구매 수익", "세션수"])
 
