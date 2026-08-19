@@ -134,7 +134,7 @@ def save_excel(df, path, y=2026, mth=7):
         write_report_request(xw.book.create_sheet("리포트 추가 요청"), df, y, mth)
         # 미맵핑 GA 점검 (매칭 안 되는 GA 원본 + 사유)
         from mapping import write_mapping_sheets
-        write_mapping_sheets(xw.book, y, mth)
+        write_mapping_sheets(xw.book, df, y, mth)
         # 전체 디자인 마감 (글꼴·테두리 통일)
         from style import apply_global_style
         apply_global_style(xw.book)

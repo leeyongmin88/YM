@@ -36,28 +36,43 @@ def _nsa_reason(sess_camp):
     return "유형 미식별 · bsa/cpc/shopping/ambassador 아님"
 
 
-def _collect_da(name, metrics):
-    """광고매출/광고가입 미맵핑 행 수집 + 요약(매핑됨/키미식별/매체대응없음)."""
+DA_GROUPS = ["매핑됨", "광고 미매칭", "키 미식별", "매체 대응없음"]
+
+
+def _collect_da(name, metrics, ad_kd, ad_k):
+    """광고매출/광고가입 미맵핑 행 수집 + 요약.
+    ad_kd=광고 (매칭키,날짜키) 집합, ad_k=광고 매칭키 집합.
+    매핑됨=키추출+광고매칭 / 광고미매칭=키추출됐으나 광고에 없음 / 키미식별 / 매체대응없음."""
     df = _read_ga(name)
     df = df[df["세션 소스/매체"].str.strip() != ""]
     has_cid = "세션 캠페인 ID" in df.columns
-    rows, summ = [], {"매핑됨": [0, 0.0, 0.0, 0.0], "키 미식별": [0, 0.0, 0.0, 0.0],
-                      "매체 대응없음": [0, 0.0, 0.0, 0.0]}
+    rows = []
+    summ = {g: [0, 0.0, 0.0, 0.0] for g in DA_GROUPS}
     for _, r in df.iterrows():
         plat = platform_of(r["세션 소스/매체"])
         cid = r["세션 캠페인 ID"] if has_cid else ""
         key = ga_key(plat, r["세션 캠페인"], r["세션 수동 광고 콘텐츠"], cid)
+        dk = str(r["날짜"]).strip()
         vals = [to_num(r.get(m, 0)) for m in metrics]
         sess = to_num(r.get("세션수", 0))
-        grp = "매핑됨" if key else ("키 미식별" if plat else "매체 대응없음")
+        if key and (str(key), dk) in ad_kd:
+            grp, reason = "매핑됨", None
+        elif key:
+            grp = "광고 미매칭"
+            reason = ("코드 있으나 광고 데이터에 해당 소재 없음" if str(key) not in ad_k
+                      else "코드 있으나 해당 날짜 광고 집행 없음(지연전환 등)")
+        elif plat:
+            grp, reason = "키 미식별", _da_reason(plat)
+        else:
+            grp, reason = "매체 대응없음", _da_reason(plat)
         s = summ[grp]
         s[0] += 1; s[1] += sess
         if len(metrics) >= 2:              # 매출류(구매/수익)만 요약에 누적
             s[2] += vals[0]; s[3] += vals[1] if len(vals) > 1 else 0
-        if key:
+        if grp == "매핑됨":
             continue
         rows.append([r["세션 소스/매체"], r["세션 캠페인"], r["세션 수동 광고 콘텐츠"],
-                     cid, r["날짜"], *vals, plat or "(미인식)", _da_reason(plat)])
+                     cid, dk, *vals, plat or "(미인식)", reason])
     return rows, summ
 
 
@@ -91,11 +106,14 @@ def _table(ws, title, headers, rows, fmts, top=2):
     return hr + len(rows)
 
 
-def write_mapping_sheets(book, y, mth):
+def write_mapping_sheets(book, df, y, mth):
+    # 광고 실제 매칭키(날짜별) 집합 → GA가 광고에 붙었는지 판정용
+    ad_kd = set(zip(df["매칭키"].astype(str), df["날짜키"].astype(str)))
+    ad_k = set(df["매칭키"].astype(str))
     # 광고매출 (구매/수익/세션)
-    sales_rows, sales_sum = _collect_da("광고매출.csv", ["구매", "구매 수익", "세션수"])
+    sales_rows, sales_sum = _collect_da("광고매출.csv", ["구매", "구매 수익", "세션수"], ad_kd, ad_k)
     # 광고가입 (이벤트수=회원가입/세션)
-    signup_rows, _ = _collect_da("광고가입.csv", ["이벤트 수", "세션수"])
+    signup_rows, _ = _collect_da("광고가입.csv", ["이벤트 수", "세션수"], ad_kd, ad_k)
     # 네이버SA매출 (구매/수익/세션)
     nsa_rows = _collect_nsa("네이버SA매출.csv", ["구매", "구매 수익", "세션수"])
 
@@ -104,17 +122,17 @@ def write_mapping_sheets(book, y, mth):
     _put(ws, 2, 2, "■ GA 미맵핑 분류 (광고매출 기준)", font=F_TITLE)
     for i, h in enumerate(["구분", "GA행수", "세션수", "구매", "구매수익"]):
         _put(ws, 4, 2 + i, h, font=F_COL, fill=FILL_COL, align=CENTER)
-    order = ["매핑됨", "키 미식별", "매체 대응없음"]
     tot = [0, 0.0, 0.0, 0.0]
-    for k, k2 in enumerate(order):
+    for k, k2 in enumerate(DA_GROUPS):
         s = sales_sum[k2]
         _put(ws, 5 + k, 2, k2, align=LEFT)
         for c, (v, f) in enumerate(zip(s, ["#,##0", "#,##0", "#,##0", "#,##0"])):
             _put(ws, 5 + k, 3 + c, v, f)
             tot[c] += v
-    _put(ws, 8, 2, "합계", font=F_SUM, fill=FILL_SUM)
+    srow = 5 + len(DA_GROUPS)
+    _put(ws, srow, 2, "합계", font=F_SUM, fill=FILL_SUM)
     for c, v in enumerate(tot):
-        _put(ws, 8, 3 + c, v, "#,##0", font=F_SUM, fill=FILL_SUM)
+        _put(ws, srow, 3 + c, v, "#,##0", font=F_SUM, fill=FILL_SUM)
     ws.column_dimensions["A"].width = 2
 
     da_hdr = ["세션 소스/매체", "세션 캠페인", "콘텐츠", "세션 캠페인ID", "날짜",

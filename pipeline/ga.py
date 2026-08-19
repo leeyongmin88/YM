@@ -52,7 +52,7 @@ def ga_key(plat, camp, content, camp_id):
     if plat == "Google":
         return camp if camp.upper().startswith("GGL") else ""
     if plat == "Criteo":
-        return _code(camp_id, "CT")
+        return _code(camp_id, "CT") or _code(content, "CT")   # 캠페인ID 없으면 콘텐츠에서
     if plat == "RTB":
         return camp.split("_")[0].upper()          # it_rtb_re → IT
     if plat == "KKO":
