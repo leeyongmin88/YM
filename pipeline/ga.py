@@ -18,8 +18,9 @@ _SKIP = [0, 1, 2, 3, 4, 5, 7]   # 프리앰블 + 총합계행
 
 
 def _read_ga(name):
-    df = pd.read_csv(GA_DIR / name, encoding="utf-8-sig", skiprows=_SKIP,
-                     dtype=str, keep_default_na=False)
+    # encoding_errors='replace': 프리앰블 등 깨진 바이트가 있어도 읽기 유지(해당부는 건너뜀).
+    df = pd.read_csv(GA_DIR / name, encoding="utf-8-sig", encoding_errors="replace",
+                     skiprows=_SKIP, dtype=str, keep_default_na=False)
     df.columns = [c.strip() for c in df.columns]
     return df
 
@@ -53,8 +54,8 @@ def _criteo_key(ga_camp):
 
 def ga_key(plat, camp, content, camp_id, ad_ct_bt=None):
     """GA행 → 통합 매칭키 (매체별 규칙). 미매칭이면 ''.
-    ad_ct_bt={CT코드:브랜드유형} — 크리테오에서 소재코드가 광고에 있으면 그 소재의 실제
-    유형으로 매칭(캠페인명보다 정확), 없으면 캠페인명 기반."""
+    ad_ct_bt={CT코드:브랜드유형} — 크리테오는 소재코드(CT)가 광고에 있을 때만 그 소재의
+    실제 유형으로 매칭. CT가 없거나 광고에 없으면 미매칭(캠페인명 폴백 없음)."""
     camp = str(camp).strip()
     if plat == "Meta":
         return _code(content, "MT")                # GA 콘텐츠의 MT코드
@@ -70,7 +71,7 @@ def ga_key(plat, camp, content, camp_id, ad_ct_bt=None):
         ct = _code(camp_id, "CT") or _code(content, "CT")   # 세션캠페인ID/콘텐츠의 CT
         if ct and ad_ct_bt and ct in ad_ct_bt:
             return ad_ct_bt[ct]                     # 소재코드가 광고에 있으면 그 소재의 실제 유형
-        return _criteo_key(camp)                    # 없으면 GA 캠페인명(it_lf_re…) 기반
+        return ""                                   # CT로 광고 소재에 매칭되는 것만(캠페인명 폴백 제거)
     if plat == "RTB":
         return camp.split("_")[0].upper()          # it_rtb_re → IT
     if plat == "KKO":
