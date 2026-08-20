@@ -297,8 +297,10 @@ _COST_COL = "H"
 # 유형파생 시트: suffix → (예산매체, 유형라벨→예산패턴  or  None=매체전체 일별합계 1건)
 _TYPED_REG = {
     "크리테오": ("Criteo", None),
-    "K디스": ("KKO", {"네이티브": "ntv", "비즈보드": "biz", "카탈로그": "_ca"}),
-    "N디스": ("Naver", {"스마트채널": "smart", "애드부스트": "advoost"}),
+    "K디스": ("KKO", {"네이티브": "ntv", "비즈보드": "biz", "비즈보드_전환": "biz_conv",
+                     "카탈로그": "_ca"}),
+    "N디스": ("Naver", {"스마트채널": "smart", "스마트채널_전환": "smart_conv",
+                       "애드부스트": "advoost"}),
 }
 # N검색 상품 → (블록index p, MO전용여부). 일자별 합계 = PC블록 + MO블록(엠버서더는 MO만).
 _NS_REG = {"bsa": (1, False), "cpc": (2, False), "shopping": (3, False),
@@ -395,6 +397,8 @@ def pmax_type(camp):
 
 def kko_type(camp):
     c = str(camp).lower()
+    if "biz_conv" in c:            # 전환형은 비즈보드보다 먼저(별도 유형)
+        return "비즈보드_전환"
     if "biz" in c:
         return "비즈보드"
     if "ntv" in c:
@@ -406,6 +410,8 @@ def kko_type(camp):
 
 def naver_type(camp):
     c = str(camp).lower()
+    if "smart_conv" in c:          # 전환형은 스마트채널보다 먼저(별도 유형)
+        return "스마트채널_전환"
     if "smart" in c:
         return "스마트채널"
     if "advoost" in c:

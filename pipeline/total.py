@@ -89,6 +89,25 @@ if _FILE_MEDIA and all(m is not None for _g, _l, m, _p, _b in _FILE_MEDIA):
 else:
     ACTIVE_MEDIA = [(g, l, m, p, {"MI": d, "EBM": d, "IT": d})
                     for g, l, m, p, d in MEDIA_ROWS]
+def _inject_conv_rows(rows):
+    """전환형 파생(네이버 스마트채널 / 카카오 비즈보드의 _conv)을 base 바로 뒤에 별도 줄로 삽입.
+    예산 0 = 기존 base와 예산 공유(전환 줄은 월예산 0 표시). 이미 있으면 스킵."""
+    specs = [("네이버 스마트채널", "네이버 스마트채널(전환)", "Naver", "smart_conv"),
+             ("카카오 비즈보드", "카카오 비즈보드(전환)", "KKO", "biz_conv")]
+    out = list(rows)
+    for base_lbl, new_lbl, media, new_pat in specs:
+        if any(str(l).strip() == new_lbl for _g, l, _m, _p, _b in out):
+            continue
+        idx = next((i for i, (g, l, m, p, b) in enumerate(out)
+                    if str(l).strip() == base_lbl and m == media), None)
+        if idx is None:
+            continue
+        zero = {k: 0 for k in out[idx][4]} or {"MI": 0, "EBM": 0, "IT": 0}
+        out.insert(idx + 1, (out[idx][0], new_lbl, media, new_pat, zero))
+    return out
+
+
+ACTIVE_MEDIA = _inject_conv_rows(ACTIVE_MEDIA)
 _BUD_LOOKUP = {(str(g).strip(), str(l).strip()): b for g, l, m, p, b in ACTIVE_MEDIA}
 
 
@@ -110,7 +129,8 @@ def set_budget_folders(folders):
             for br, v in b.items():
                 merged[key][br] = merged[key].get(br, 0) + v
     if order:
-        ACTIVE_MEDIA = [(g, l, m, p, merged[(g, l, m, p)]) for (g, l, m, p) in order]
+        ACTIVE_MEDIA = _inject_conv_rows(
+            [(g, l, m, p, merged[(g, l, m, p)]) for (g, l, m, p) in order])
         _BUD_LOOKUP = {(str(g).strip(), str(l).strip()): b for g, l, m, p, b in ACTIVE_MEDIA}
 
 
@@ -146,11 +166,24 @@ def _div(a, b):
     return a / b if b else 0.0
 
 
+_CONV_BASES = {"biz", "smart"}   # 전환형 파생(_conv)이 있는 base 패턴 → base 슬라이스 시 제외
+
+
+def camp_match(camp, pattern):
+    """캠페인 시리즈 → pattern(부분문자열) 매칭 mask. base(biz/smart)면
+    전환형 파생(_conv)은 제외해 별도 유형과의 이중집계를 막는다."""
+    p = str(pattern).strip().lower()
+    mask = camp.str.contains(pattern, case=False, regex=False)
+    if p in _CONV_BASES:
+        mask &= ~camp.str.contains(p + "_conv", case=False, regex=False)
+    return mask
+
+
 def _slice(df, media, pattern):
     m = df["매체"] == media
     # 패턴이 통합매체명과 같으면(단일플랫폼 매체를 매체명으로 잘못 기입) 무시 → 매체 전체.
     if pattern and str(pattern).strip().lower() != str(media).strip().lower():
-        m &= df["캠페인"].str.contains(pattern, case=False, regex=False)
+        m &= camp_match(df["캠페인"], pattern)
     return df[m]
 
 

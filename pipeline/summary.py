@@ -9,7 +9,7 @@ warnings.simplefilter("ignore")
 import calendar
 from datetime import date
 from openpyxl.styles import Alignment, Border, Side, PatternFill, Font
-from total import (ACTIVE_MEDIA, _slice, _metrics, _put, F_TITLE, F_SEC, F_COL, F_SUM,
+from total import (ACTIVE_MEDIA, _slice, camp_match, _metrics, _put, F_TITLE, F_SEC, F_COL, F_SUM,
                    FILL_SEC, FILL_COL, FILL_SUM, CENTER, LEFT, BRAND_TITLE)
 
 
@@ -42,9 +42,11 @@ BS_MEDIA = [
     ("성과형", "네이버 엠버서더형", "Naver SA", "Ambassador"),
     ("성과형", "구글 키워드검색", "Google", "cpc"),
     ("성과형", "네이버 성과형DA - 스마트채널", "Naver", "smart"),
+    ("성과형", "네이버 성과형DA - 스마트채널(전환)", "Naver", "smart_conv"),
     ("성과형", "네이버 성과형DA - ADVoost", "Naver", "advoost"),
     ("성과형", "카카오 네이티브", "KKO", "ntv"),
     ("성과형", "카카오 비즈보드", "KKO", "biz"),
+    ("성과형", "카카오 비즈보드(전환)", "KKO", "biz_conv"),
     ("성과형", "카카오 카탈로그", "KKO", "ca"),
     ("성과형", "구글 쇼핑", "Google", "pmax"),
     ("성과형", "크리테오", "Criteo", ""),
@@ -139,8 +141,11 @@ SUBTYPES = [
     ("Naver Brand SA", "Naver SA", "bsa"), ("Naver Keyword SA", "Naver SA", "cpc"),
     ("Naver Shopping SA", "Naver SA", "shopping"), ("Naver Place SA", "Naver SA", "place"),
     ("Naver Ambassador SA", "Naver SA", "Ambassador"),
-    ("Naver DA_SmartChannel", "Naver", "smart"), ("Naver DA_ADVoost", "Naver", "advoost"),
-    ("KAKAO Bizboard", "KKO", "biz"), ("KAKAO Native", "KKO", "ntv"),
+    ("Naver DA_SmartChannel", "Naver", "smart"),
+    ("Naver DA_SmartChannel(전환)", "Naver", "smart_conv"),
+    ("Naver DA_ADVoost", "Naver", "advoost"),
+    ("KAKAO Bizboard", "KKO", "biz"), ("KAKAO Bizboard(전환)", "KKO", "biz_conv"),
+    ("KAKAO Native", "KKO", "ntv"),
     ("Kakao Catalog", "KKO", "ca"),
     ("Criteo", "Criteo", ""), ("RTB House", "RTB", ""),
     ("Instagram_성과형", "Meta", "pf"), ("Instagram_노출형(브랜딩)", "Meta", "br"),
@@ -161,7 +166,7 @@ def write_report_request(ws, uni, y, mth):
     def cost_series(dfb, media, pat):
         d = dfb[dfb["매체"] == media]
         if pat:
-            d = d[d["캠페인"].str.contains(pat, case=False, regex=False)]
+            d = d[camp_match(d["캠페인"], pat)]      # base(biz/smart)는 _conv 제외
         return d.groupby("날짜키")["광고비용"].sum().to_dict()
 
     r = 5
