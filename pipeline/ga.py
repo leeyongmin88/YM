@@ -6,7 +6,9 @@ GA 원본 4파일:
   광고가입.csv        → 회원가입(이벤트수)/가입세션
   네이버SA매출.csv    → Naver SA 구매/수익/세션
   네이버SA가입.csv    → Naver SA 회원가입/세션
-모두 프리앰블 6줄 + 총합계행(헤더 다음 1줄) 존재 → skiprows=[0,1,2,3,4,5,7].
+프리앰블(주석 '#'줄 + 빈 줄) 다음 첫 실데이터성 줄이 헤더, 그 바로 다음 1줄이 총합계행.
+프리앰블 줄 수는 GA4 내보내기 시점에 따라 5줄일 때도 6줄일 때도 있어 하드코딩하지 않고
+매번 파일에서 동적으로 탐지한다 (아래 _detect_skiprows 참고).
 """
 import re
 import pandas as pd
@@ -14,14 +16,67 @@ from config import RAW_DIR, KKO_CATALOG, BRANDS
 from ingest import to_num, norm_id, _code
 
 GA_DIR = RAW_DIR / "GA"
-_SKIP = [0, 1, 2, 3, 4, 5, 7]   # 프리앰블 + 총합계행
+
+
+def _norm_col(c):
+    """GA4 내보내기 헤더 표기 흔들림 정규화.
+    - 앞뒤 공백 제거
+    - 연속 공백 → 단일 공백
+    - '단어 / 단어' 형태의 슬래시 앞뒤 공백 제거 → '단어/단어'
+    (예: '세션 소스 / 매체' → '세션 소스/매체', '세션  소스/매체' → '세션 소스/매체')
+    """
+    c = str(c).strip()
+    c = re.sub(r"\s+", " ", c)
+    c = re.sub(r"\s*/\s*", "/", c)
+    return c
+
+
+def _detect_skiprows(path):
+    """프리앰블(# 주석줄 + 콤마만 있는 빈 줄)을 건너뛰고 첫 실데이터성 줄을 헤더로 탐지.
+    헤더 바로 다음 1줄은 총합계행이므로 함께 skiprows에 포함.
+    프리앰블 줄 수가 매번 달라져도(5줄/6줄 등) 자동 대응 → _SKIP 하드코딩 제거."""
+    with open(path, encoding="utf-8-sig", errors="replace") as f:
+        raw_lines = f.readlines()
+    header_idx = None
+    for i, line in enumerate(raw_lines):
+        stripped = line.strip()
+        if not stripped:
+            continue                                # 빈 줄
+        if stripped.startswith("#"):
+            continue                                # 주석 프리앰블
+        if stripped.replace(",", "").strip() == "":
+            continue                                # 콤마만 있는 빈 줄
+        header_idx = i
+        break
+    if header_idx is None:
+        raise RuntimeError(
+            f"'{path.name}': 헤더 행을 찾지 못했습니다. 파일 구조(프리앰블/헤더)가 "
+            f"예상과 크게 다를 수 있습니다. 원본 CSV를 직접 확인하세요."
+        )
+    return list(range(header_idx)) + [header_idx + 1]   # 프리앰블 전체 + 총합계행(헤더 다음 1줄)
 
 
 def _read_ga(name):
+    path = GA_DIR / name
+    skiprows = _detect_skiprows(path)
     # encoding_errors='replace': 프리앰블 등 깨진 바이트가 있어도 읽기 유지(해당부는 건너뜀).
-    df = pd.read_csv(GA_DIR / name, encoding="utf-8-sig", encoding_errors="replace",
-                     skiprows=_SKIP, dtype=str, keep_default_na=False)
-    df.columns = [c.strip() for c in df.columns]
+    df = pd.read_csv(path, encoding="utf-8-sig", encoding_errors="replace",
+                     skiprows=skiprows, dtype=str, keep_default_na=False)
+    df.columns = [_norm_col(c) for c in df.columns]
+    # 필수 컬럼 체크: 캠페인 컬럼은 파일에 따라 '세션 캠페인' 또는(구글 분리 파일)
+    # '세션 Google Ads 캠페인' 중 하나만 있어도 됨 (join_ga의 cc 분기와 동일 규칙).
+    required = ["날짜", "세션 소스/매체"]
+    missing = [c for c in required if c not in df.columns]
+    has_campaign = ("세션 캠페인" in df.columns) or ("세션 Google Ads 캠페인" in df.columns)
+    if not has_campaign:
+        missing.append("세션 캠페인 또는 세션 Google Ads 캠페인")
+    if missing:
+        raise KeyError(
+            f"'{name}' 헤더에서 예상 컬럼을 찾지 못했습니다: {missing}\n"
+            f"실제 컬럼(정규화 후): {list(df.columns)}\n"
+            f"(탐지된 헤더 행 위치: {skiprows[-1] - 1 if skiprows else 0}번째 줄, skiprows={skiprows})\n"
+            f"→ 컬럼명 표기 자체가 예상과 다를 수 있습니다. 원본 CSV 헤더 줄을 직접 확인하세요."
+        )
     return df
 
 
