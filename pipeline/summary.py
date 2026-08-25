@@ -149,7 +149,7 @@ SUBTYPES = [
     ("Kakao Catalog", "KKO", "ca"),
     ("Criteo", "Criteo", ""), ("RTB House", "RTB", ""),
     ("Instagram_성과형", "Meta", "pf"), ("Instagram_노출형(브랜딩)", "Meta", "br"),
-    ("TikTok", "TikTok", ""), ("Toss", "Toss", ""), ("Dable", "Dable", ""),
+    ("틱톡", "TikTok", ""), ("토스", "Toss", ""), ("데이블", "Dable", ""),
 ]
 
 
