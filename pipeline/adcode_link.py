@@ -137,10 +137,12 @@ def main():
             _MED = {"MT": "Meta", "KK": "KKO", "CT": "Criteo", "NG": "Naver",
                     "DB": "Dable", "TT": "TikTok", "TS": "Toss",
                     "GS": "Google", "GP": "Google", "GG": "Google", "GY": "Google"}
-            # ① 코드별 상세
+            # ① 코드별 상세 (+ 사전 없어 캠페인 구조로 채운 분류)
             detail = (um.groupby("애드코드")
                         .agg(매체=("매체", "first"), 브랜드=("브랜드", "first"),
-                             캠페인=("캠페인", "first"), 소재예시=("광고(소재)", "first"),
+                             캠페인=("캠페인", "first"),
+                             SA_DA=("SA_DA", "first"), 상품분류=("상품분류", "first"),
+                             유형구분=("유형구분", "first"), 소재예시=("광고(소재)", "first"),
                              행수=("애드코드", "size"), 광고비=("광고비용", "sum"),
                              매출=("GA구매수익", "sum"))
                         .reset_index())
@@ -148,6 +150,7 @@ def main():
                 lambda c: (_pre.match(str(c)).group(1).upper() if _pre.match(str(c)) else ""))
             detail = detail.sort_values(["매체", "애드코드"])
             detail = detail[["접두어", "애드코드", "매체", "브랜드", "캠페인",
+                             "SA_DA", "상품분류", "유형구분",
                              "소재예시", "행수", "광고비", "매출"]]
             # ② 매체(접두어)별 요약
             summ = (detail.groupby("접두어")
@@ -157,18 +160,17 @@ def main():
             summ.to_excel(xw, sheet_name="미매칭_요약", index=False)
             detail.to_excel(xw, sheet_name="미매칭_코드목록", index=False)
 
-        # 애드코드 없는 행(검색광고 등) → 캠페인 구조로 채운 분류 안내
+        # 애드코드 없는 행(검색광고 등) → 캠페인 구조로 채운 분류 (매칭키 전체 리스트업)
         nc = df[df["코드매칭"] == "코드없음"]
         if len(nc):
-            def _ex(s):
-                u = sorted(set(str(x) for x in s))
-                return ", ".join(u[:3]) + (f"  외 {len(u) - 3}개" if len(u) > 3 else "")
-            gc = (nc.groupby(["매체", "SA_DA", "상품분류", "유형구분"])
-                    .agg(매칭키_예시=("매칭키", _ex), 매칭키종수=("매칭키", "nunique"),
-                         행수=("매칭키", "size"), 광고비=("광고비용", "sum"),
+            gc = (nc.groupby(["매체", "SA_DA", "상품분류", "유형구분", "매칭키"])
+                    .agg(행수=("매칭키", "size"), 광고비=("광고비용", "sum"),
                          매출=("GA구매수익", "sum"))
-                    .reset_index().sort_values("광고비", ascending=False))
-            gc.to_excel(xw, sheet_name="코드없음_자동분류", index=False)
+                    .reset_index()
+                    .sort_values(["SA_DA", "상품분류", "매칭키"]))
+            gc = gc[["매체", "SA_DA", "상품분류", "유형구분", "매칭키",
+                     "행수", "광고비", "매출"]]
+            gc.to_excel(xw, sheet_name="코드없음_분류리스트", index=False)
 
     # ── 요약 출력 ──
     tot = len(df)
