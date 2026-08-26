@@ -56,11 +56,53 @@ def extract_code(soje, matchkey, dict_codes):
     return ""                                              # 코드 없음(검색광고 등)
 
 
+def classify_row(media, camp, key):
+    """매체+캠페인 패턴 → (SA/DA, 상품분류, 유형). 모든 행 공통 분류(코드 유무 무관).
+    검색광고 등 애드코드 없는 행도 이 규칙으로 채워 시각화 차원을 일관되게 만든다."""
+    c = f"{camp} {key}".lower()
+    m = str(media)
+    if m == "Naver SA":
+        prod = ("네이버 브랜드검색" if "bsa" in c else "네이버 키워드검색" if "cpc" in c
+                else "네이버 쇼핑검색" if "shopping" in c else "네이버 플레이스" if "place" in c
+                else "네이버 엠버서더" if "ambassador" in c else "네이버 SA 기타")
+        return "SA", prod, "성과형"
+    if m == "Google":
+        if "pmax" in c:    return "DA", "구글 피맥스(쇼핑)", "성과형"
+        if "cpc" in c:     return "SA", "구글 키워드검색", "성과형"
+        if "youtube" in c: return "DA", "구글 유튜브", "노출형"
+        if "gdn" in c:     return "DA", "구글 GDN", "노출형"
+        return "SA", "구글 기타", "성과형"
+    if m == "Naver":
+        prod = ("네이버 스마트채널(전환)" if "smart_conv" in c else "네이버 스마트채널" if "smart" in c
+                else "네이버 애드부스트" if "advoost" in c else "네이버 DA 기타")
+        return "DA", prod, "성과형"
+    if m == "KKO":
+        prod = ("카카오 비즈보드(전환)" if "biz_conv" in c else "카카오 비즈보드" if "biz" in c
+                else "카카오 네이티브" if "ntv" in c else "카카오 카탈로그" if "ca" in c
+                else "카카오 DA 기타")
+        return "DA", prod, "성과형"
+    if m == "Criteo":  return "DA", "크리테오", "성과형"
+    if m == "RTB":     return "DA", "RTB하우스", "성과형"
+    if m == "Meta":
+        return ("DA", "인스타그램 노출형", "노출형") if "_br" in c else ("DA", "인스타그램 성과형", "성과형")
+    if m == "Dable":   return "DA", "데이블", "성과형"
+    if m == "TikTok":  return "DA", "틱톡", "성과형"
+    if m == "Toss":    return "DA", "토스", "성과형"
+    return "", m, ""
+
+
 def build_linked():
-    """최신 통합 + 애드코드 속성 결합 DataFrame + (속성열, 사전코드집합) 반환."""
+    """최신 통합 + 공통분류(SA/DA·상품분류·유형) + 애드코드 사전 속성 결합.
+    반환: (df, 사전속성열, 사전코드집합)."""
     df = build_unified().copy()
     dic, attr_cols = load_dict()
     codes = set(dic)
+    # ① 모든 행 공통 분류 (코드 유무 무관) → 시각화 차원 일관화
+    cls = [classify_row(md, cp, k) for md, cp, k in zip(df["매체"], df["캠페인"], df["매칭키"])]
+    df["SA_DA"] = [x[0] for x in cls]
+    df["상품분류"] = [x[1] for x in cls]
+    df["유형구분"] = [x[2] for x in cls]
+    # ② 애드코드 추출 + 사전 상세 속성(코드 매칭 행만 채워짐)
     df["애드코드"] = [extract_code(s, k, codes)
                    for s, k in zip(df["광고(소재)"], df["매칭키"])]
     for c in attr_cols:
