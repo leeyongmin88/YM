@@ -157,6 +157,19 @@ def main():
             summ.to_excel(xw, sheet_name="미매칭_요약", index=False)
             detail.to_excel(xw, sheet_name="미매칭_코드목록", index=False)
 
+        # 애드코드 없는 행(검색광고 등) → 캠페인 구조로 채운 분류 안내
+        nc = df[df["코드매칭"] == "코드없음"]
+        if len(nc):
+            def _ex(s):
+                u = sorted(set(str(x) for x in s))
+                return ", ".join(u[:3]) + (f"  외 {len(u) - 3}개" if len(u) > 3 else "")
+            gc = (nc.groupby(["매체", "SA_DA", "상품분류", "유형구분"])
+                    .agg(매칭키_예시=("매칭키", _ex), 매칭키종수=("매칭키", "nunique"),
+                         행수=("매칭키", "size"), 광고비=("광고비용", "sum"),
+                         매출=("GA구매수익", "sum"))
+                    .reset_index().sort_values("광고비", ascending=False))
+            gc.to_excel(xw, sheet_name="코드없음_자동분류", index=False)
+
     # ── 요약 출력 ──
     tot = len(df)
     n_match = (df["코드매칭"] == "매칭").sum()
