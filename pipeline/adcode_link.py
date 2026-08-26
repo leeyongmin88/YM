@@ -88,15 +88,32 @@ def main():
     out = _out_path(stamp)
     with pd.ExcelWriter(out, engine="openpyxl", datetime_format="yyyy-mm-dd") as xw:
         df.to_excel(xw, sheet_name="통합_애드코드연결", index=False)
-        # 미매칭코드 요약(사전에 없는 코드) → 사전 업데이트 안내
+        # 미매칭코드(사전에 없는 코드) → 사전 업데이트 안내
         um = df[df["코드매칭"] == "미매칭"]
         if len(um):
-            s = (um.groupby("애드코드")
-                   .agg(행수=("애드코드", "size"), 광고비=("광고비용", "sum"),
-                        매체=("매체", "first"), 브랜드=("브랜드", "first"),
-                        소재예시=("광고(소재)", "first"))
-                   .reset_index().sort_values("광고비", ascending=False))
-            s.to_excel(xw, sheet_name="미매칭코드", index=False)
+            _pre = re.compile(r"([A-Za-z]+)")
+            _MED = {"MT": "Meta", "KK": "KKO", "CT": "Criteo", "NG": "Naver",
+                    "DB": "Dable", "TT": "TikTok", "TS": "Toss",
+                    "GS": "Google", "GP": "Google", "GG": "Google", "GY": "Google"}
+            # ① 코드별 상세
+            detail = (um.groupby("애드코드")
+                        .agg(매체=("매체", "first"), 브랜드=("브랜드", "first"),
+                             캠페인=("캠페인", "first"), 소재예시=("광고(소재)", "first"),
+                             행수=("애드코드", "size"), 광고비=("광고비용", "sum"),
+                             매출=("GA구매수익", "sum"))
+                        .reset_index())
+            detail["접두어"] = detail["애드코드"].map(
+                lambda c: (_pre.match(str(c)).group(1).upper() if _pre.match(str(c)) else ""))
+            detail = detail.sort_values(["매체", "애드코드"])
+            detail = detail[["접두어", "애드코드", "매체", "브랜드", "캠페인",
+                             "소재예시", "행수", "광고비", "매출"]]
+            # ② 매체(접두어)별 요약
+            summ = (detail.groupby("접두어")
+                          .agg(추정매체=("매체", "first"), 코드종수=("애드코드", "nunique"),
+                               광고비=("광고비", "sum"), 매출=("매출", "sum"))
+                          .reset_index().sort_values("광고비", ascending=False))
+            summ.to_excel(xw, sheet_name="미매칭_요약", index=False)
+            detail.to_excel(xw, sheet_name="미매칭_코드목록", index=False)
 
     # ── 요약 출력 ──
     tot = len(df)
@@ -112,7 +129,7 @@ def main():
         print(f"  코드有 광고비 중 사전매칭률: {cost_match / cost_all_coded * 100:.1f}%")
     if n_unmatch:
         miss = sorted(df.loc[df["코드매칭"] == "미매칭", "애드코드"].unique())
-        print(f"  ⚠ 사전에 없는 코드 {len(miss)}종 → [미매칭코드] 시트 확인, 사전 업데이트 권장")
+        print(f"  ⚠ 사전에 없는 코드 {len(miss)}종 → [미매칭_요약]·[미매칭_코드목록] 시트 확인, 사전 업데이트 권장")
         print("     예:", ", ".join(miss[:10]))
     print(f"  붙인 속성열: {', '.join(attr_cols)}")
 
