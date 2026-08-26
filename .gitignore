@@ -3,6 +3,8 @@
 Raw/
 Raw_*/
 output/
+# 애드코드 사전 (코드→속성 매핑 데이터, 로컬 보관)
+애드코드사전.xlsx
 
 # Python
 __pycache__/
