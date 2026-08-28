@@ -109,7 +109,30 @@ def build_linked():
         df[c] = df["애드코드"].map(lambda x: dic.get(x, {}).get(c, ""))
     df["코드매칭"] = df["애드코드"].map(
         lambda x: "매칭" if x in codes else ("미매칭" if x else "코드없음"))
-    return df, attr_cols, codes
+    # 최종매칭키: 애드코드 있으면 그대로, 없으면 매체별 합성코드 부여(임의)
+    df, syn = _add_final_key(df)
+    return df, attr_cols, codes, syn
+
+
+# 애드코드 없는 행(검색·RTB 등) 합성코드 접두어 (실제 코드 MT/KK/CT/NG/DB/TT/TS와 겹치지 않게)
+_SYN_PREFIX = {"Naver SA": "NS", "Google": "GO", "Naver": "NV", "KKO": "KO",
+               "Criteo": "CR", "Meta": "ME", "RTB": "RT",
+               "Dable": "DA", "TikTok": "TK", "Toss": "TO"}
+
+
+def _add_final_key(df):
+    """최종매칭키 = 애드코드(있으면) / 없으면 매체별 합성코드(매칭키 단위로 부여).
+    반환: (df, {매칭키: 합성코드})."""
+    nc = df[df["애드코드"] == ""]
+    pairs = sorted(set(zip(nc["매체"].astype(str), nc["매칭키"].astype(str))))
+    syn, cnt = {}, {}
+    for media, key in pairs:
+        p = _SYN_PREFIX.get(media, "XX")
+        cnt[p] = cnt.get(p, 0) + 1
+        syn[key] = f"{p}{cnt[p]:04d}"
+    df["최종매칭키"] = [ac if ac else syn.get(str(mk), str(mk))
+                    for ac, mk in zip(df["애드코드"], df["매칭키"])]
+    return df, syn
 
 
 def _out_path(stamp):
@@ -125,7 +148,7 @@ def _out_path(stamp):
 
 
 def main():
-    df, attr_cols, codes = build_linked()
+    df, attr_cols, codes, syn = build_linked()
     stamp = datetime.now().strftime("%y%m%d")
     out = _out_path(stamp)
     with pd.ExcelWriter(out, engine="openpyxl", datetime_format="yyyy-mm-dd") as xw:
@@ -172,9 +195,10 @@ def main():
             gc = (nc.groupby(["매체", "SA_DA", "상품분류", "유형구분", "매칭키"])
                     .agg(행수=("매칭키", "size"), 광고비=("광고비용", "sum"),
                          매출=("GA구매수익", "sum"))
-                    .reset_index()
-                    .sort_values(["SA_DA", "상품분류", "매칭키"]))
-            gc = gc[["매체", "SA_DA", "상품분류", "유형구분", "매칭키",
+                    .reset_index())
+            gc["최종매칭키"] = gc["매칭키"].map(lambda k: syn.get(str(k), str(k)))
+            gc = gc.sort_values(["SA_DA", "상품분류", "최종매칭키"])
+            gc = gc[["매체", "SA_DA", "상품분류", "유형구분", "최종매칭키", "매칭키",
                      "행수", "광고비", "매출"]]
             gc.to_excel(xw, sheet_name="코드없음_분류리스트", index=False)
 
