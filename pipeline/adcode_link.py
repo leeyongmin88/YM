@@ -130,6 +130,12 @@ def main():
     out = _out_path(stamp)
     with pd.ExcelWriter(out, engine="openpyxl", datetime_format="yyyy-mm-dd") as xw:
         df.to_excel(xw, sheet_name="통합_애드코드연결", index=False)
+        # 날짜 열은 시간 제거하고 yyyy-mm-dd 로 표시
+        _ws = xw.sheets["통합_애드코드연결"]
+        if "날짜" in df.columns:
+            _dc = list(df.columns).index("날짜") + 1
+            for _r in range(2, len(df) + 2):
+                _ws.cell(row=_r, column=_dc).number_format = "yyyy-mm-dd"
         # 미매칭코드(사전에 없는 코드) → 사전 업데이트 안내
         um = df[df["코드매칭"] == "미매칭"]
         if len(um):
