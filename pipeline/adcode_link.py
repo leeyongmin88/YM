@@ -35,7 +35,8 @@ def load_dict():
     df[key] = df[key].astype(str).str.strip().str.upper()
     df = df[(df[key] != "") & (df[key] != "NAN")]
     attr_src = [c for c in df.columns if c != key]
-    ren = {c: ("코드_매체" if c == "매체" else c) for c in attr_src}
+    ren = {c: ("코드_매체" if c == "매체" else "코드_SADA" if c == "`" else c)
+           for c in attr_src}                              # 매체 중복회피 + 깨진 SA/DA 헤더 정리
     df = df.rename(columns=ren)
     attr_cols = [ren[c] for c in attr_src]
     dic = {r[key]: {c: r[c] for c in attr_cols} for _, r in df.iterrows()}
@@ -91,6 +92,74 @@ def classify_row(media, camp, key):
     return "", m, ""
 
 
+# ── 코드없음(검색·RTB 등) 사전속성 채우기 규칙 (사용자 확정) ──
+_MEDIA_MAP = {"KKO": "Kakao", "Naver SA": "Naver"}          # 사전 표기 통일
+_PRODNAME = {
+    "네이버 브랜드검색": "bsa", "네이버 키워드검색": "cpc", "네이버 쇼핑검색": "shopping",
+    "네이버 플레이스": "place", "네이버 엠버서더": "Ambassador", "네이버 애드부스트": "advoost",
+    "구글 키워드검색": "SA", "구글 피맥스(쇼핑)": "PMAX", "RTB하우스": "RTB",
+}
+_CRI_CASE = {"LF": "LF", "CCA": "CCA", "HYBRID": "Hybrid"}   # 사전 대소문자
+# 상품분류 → (구분, 최적화, 타겟팅, 어드벤티지, 소재형식, 소재명1, 소재명2). 최적화 None=행별.
+_ATTR = {
+    "크리테오":         ("Routine", None, "AUD", "ADV", "Catalog", "N", "N"),
+    "구글 피맥스(쇼핑)": ("Routine", None, "AUD", "ADV", "Catalog", "N", "N"),
+    "구글 키워드검색":   ("Routine", "Conversion", "KW", "none", "Text", "N", "N"),
+    "인스타그램 노출형": ("Branded Content", "Engagement", "INT", "none", "none", "D", "N"),
+    "네이버 애드부스트": ("Routine", "Conversion", "AUD", "none", "Catalog", "N", "N"),
+    "네이버 브랜드검색": ("Routine", "Conversion", "KW", "none", "Text", "N", "N"),
+    "네이버 키워드검색": ("Routine", "Conversion", "KW", "none", "Text", "N", "N"),
+    "네이버 쇼핑검색":   ("Routine", "Conversion", "KW", "none", "Text", "N", "N"),
+    "네이버 플레이스":   ("Routine", "Conversion", "KW", "none", "Text", "N", "N"),
+    "네이버 엠버서더":   ("Routine", "Conversion", "KW", "none", "Text", "N", "N"),
+    "RTB하우스":        ("Routine", "Conversion", "RE", "ADV", "Catalog", "N", "N"),
+}
+_MOKJEOK = {"성과형": "pf", "노출형": "br"}
+
+
+def _nc_prodname(sb, mk, camp):
+    if sb == "크리테오":
+        t = str(mk).split("_")[-1].upper()
+        return _CRI_CASE.get(t, t)
+    if sb == "인스타그램 노출형":
+        c = str(camp)
+        return c.split("_br_")[-1] if "_br_" in c else "br"
+    return _PRODNAME.get(sb, "")
+
+
+def _nc_opt(sb, mk, camp):
+    if sb == "크리테오":
+        return "Traffic" if str(mk).split("_")[-1].upper() == "CCA" else "Conversion"
+    if sb == "구글 피맥스(쇼핑)":
+        return "Traffic" if "_traffic" in str(camp).lower() else "Conversion"
+    return None
+
+
+def fill_noncode(df):
+    """코드없음(검색·RTB 등) 행의 사전 속성 열을 규칙대로 채움 → 빈칸 제거.
+    Brand·SA/DA·매체·상품명·목적 = 파생값 / DA전용 = 확정규칙. 기획전명·애드코드는 공란 유지."""
+    for i in df.index[df["코드매칭"] == "코드없음"]:
+        attr = _ATTR.get(df.at[i, "상품분류"])
+        if not attr:
+            continue
+        sb, mk, camp = df.at[i, "상품분류"], df.at[i, "매칭키"], df.at[i, "캠페인"]
+        gubun, opt, targ, adv, soje, s1, s2 = attr
+        df.at[i, "Brand"] = df.at[i, "브랜드"]
+        if "코드_SADA" in df.columns:
+            df.at[i, "코드_SADA"] = df.at[i, "SA_DA"]
+        df.at[i, "코드_매체"] = _MEDIA_MAP.get(str(df.at[i, "매체"]), str(df.at[i, "매체"]))
+        df.at[i, "상품명"] = _nc_prodname(sb, mk, camp)
+        df.at[i, "구분"] = gubun
+        df.at[i, "최적화"] = opt if opt is not None else _nc_opt(sb, mk, camp)
+        df.at[i, "타겟팅"] = targ
+        df.at[i, "어드벤티지"] = adv
+        df.at[i, "소재형식"] = soje
+        df.at[i, "소재명1구분"] = s1
+        df.at[i, "소재명2구분"] = s2
+        df.at[i, "목적"] = _MOKJEOK.get(df.at[i, "유형구분"], "")
+    return df
+
+
 def build_linked():
     """최신 통합 + 공통분류(SA/DA·상품분류·유형) + 애드코드 사전 속성 결합.
     반환: (df, 사전속성열, 사전코드집합)."""
@@ -109,6 +178,8 @@ def build_linked():
         df[c] = df["애드코드"].map(lambda x: dic.get(x, {}).get(c, ""))
     df["코드매칭"] = df["애드코드"].map(
         lambda x: "매칭" if x in codes else ("미매칭" if x else "코드없음"))
+    # ③ 코드없음 행의 사전속성을 규칙대로 채움(빈칸 제거)
+    df = fill_noncode(df)
     # 최종매칭키: 애드코드 있으면 그대로, 없으면 매체별 합성코드 부여(임의)
     df, syn = _add_final_key(df)
     return df, attr_cols, codes, syn
