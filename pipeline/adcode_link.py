@@ -20,16 +20,34 @@ import config
 from build import build_unified
 import period
 
-DICT_PATH = config.YM_ROOT / "애드코드사전.xlsx"
 CODE_RE = re.compile(r"[A-Za-z]{2}\d{3,}")     # MT0001·KK0001·CT0010·NG0154 등
+# 사전 탐색 폴더 순서: 기준정보/ → YM 루트(구버전 호환)
+_DICT_DIRS = ["기준정보", ""]
+
+
+def dict_path():
+    """애드코드 사전 파일 경로. 이름에 '애드코드사전'만 들어가면 되므로
+    `애드코드사전_260907.xlsx`처럼 날짜를 붙여도 자동 인식(최신 수정본 우선)."""
+    for sub in _DICT_DIRS:
+        d = (config.YM_ROOT / sub) if sub else config.YM_ROOT
+        if not d.exists():
+            continue
+        found = [p for p in d.glob("*애드코드사전*.xlsx") if not p.name.startswith("~$")]
+        if found:
+            return max(found, key=lambda p: p.stat().st_mtime)      # 여러 개면 최신본
+    return None
 
 
 def load_dict():
     """애드코드사전.xlsx(1행 그룹헤더·2행 컬럼명·3행~ 데이터) → ({코드:{속성}}, 속성열순서).
     통합과 겹치는 '매체' 컬럼은 '코드_매체'로 회피."""
-    if not DICT_PATH.exists():
-        raise FileNotFoundError(f"애드코드 사전 파일이 없습니다: {DICT_PATH}")
-    df = pd.read_excel(DICT_PATH, header=1, dtype=str).fillna("")
+    p = dict_path()
+    if p is None:
+        raise FileNotFoundError(
+            "애드코드 사전 파일을 찾을 수 없습니다. "
+            f"'{config.YM_ROOT / '기준정보'}' 에 이름이 '애드코드사전'으로 시작하는 xlsx를 두세요.")
+    print(f"  사전 파일: {p.name}")
+    df = pd.read_excel(p, header=1, dtype=str).fillna("")
     df.columns = [str(c).strip() for c in df.columns]
     key = df.columns[0]                                    # '애드코드'
     df[key] = df[key].astype(str).str.strip().str.upper()
