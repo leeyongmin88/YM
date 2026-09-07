@@ -278,6 +278,19 @@ def main():
             summ.to_excel(xw, sheet_name="미매칭_요약", index=False)
             detail.to_excel(xw, sheet_name="미매칭_코드목록", index=False)
 
+        # 메타 광고ID → 애드코드 번역표 (GA가 MT코드 대신 광고ID를 줄 때 매칭에 사용)
+        from ingest import META_ID_KEY, META_ID_INFO
+        if META_ID_KEY:
+            mrows = []
+            for aid, k in META_ID_KEY.items():
+                cre, camp, br = META_ID_INFO.get(aid, ("", "", ""))
+                is_mt = str(k).upper().startswith("MT")
+                mrows.append({"브랜드": br, "광고ID": aid, "애드코드": k if is_mt else "",
+                              "매칭키": k, "광고이름": cre, "캠페인": camp,
+                              "비고": "" if is_mt else "애드코드 없는 소재(광고ID로 매칭)"})
+            (pd.DataFrame(mrows).sort_values(["브랜드", "애드코드", "광고ID"])
+               .to_excel(xw, sheet_name="메타_광고ID_번역표", index=False))
+
         # 애드코드 없는 행(검색광고 등) → 캠페인 구조로 채운 분류 (매칭키 전체 리스트업)
         nc = df[df["코드매칭"] == "코드없음"]
         if len(nc):

@@ -85,6 +85,12 @@ def _find(subdir, pattern):
 
 
 # ---------- 매체별 리더 (매칭키 포함) ----------
+# 메타 광고ID → 매칭키(애드코드) 번역표. GA 콘텐츠에 MT코드 대신 광고ID가 오는 경우 사용.
+# read_meta()가 RAW를 읽으며 채움 (같은 행의 광고ID·광고이름이므로 1:1 사실관계).
+META_ID_KEY = {}                 # {광고ID: 매칭키}
+META_ID_INFO = {}                # {광고ID: (광고이름, 캠페인, 브랜드)}
+
+
 def read_meta():
     out = []
     for f in sorted((RAW_DIR / "Meta").glob("*.xlsx")):
@@ -93,6 +99,10 @@ def read_meta():
                 continue
             camp = str(r[1] or ""); cre = str(r[3] or "")
             key = _code(cre, "MT") or camp                    # 매칭키 = 소재의 MT코드
+            aid = str(r[4] or "").strip()                     # 광고 ID
+            if aid and aid not in META_ID_KEY:
+                META_ID_KEY[aid] = key
+                META_ID_INFO[aid] = (cre, camp, brand_from(camp))
             out.append(["Meta", brand_from(camp), camp, str(r[2] or ""), cre,
                         to_date(r[0]), to_num(r[5]), to_num(r[6]), to_num(r[7]), key])
     return pd.DataFrame(out, columns=STD)

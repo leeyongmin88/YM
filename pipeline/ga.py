@@ -113,7 +113,12 @@ def ga_key(plat, camp, content, camp_id, ad_ct_bt=None):
     없으면(NOT SET 포함) 캠페인명(브랜드+유형)으로 매칭."""
     camp = str(camp).strip()
     if plat == "Meta":
-        return _code(content, "MT")                # GA 콘텐츠의 MT코드
+        mt = _code(content, "MT")
+        if mt:
+            return mt                              # GA 콘텐츠의 MT코드
+        # MT코드 없이 메타 광고ID(숫자)만 온 경우 → RAW 메타의 광고ID→애드코드 번역표로 해석
+        from ingest import META_ID_KEY
+        return META_ID_KEY.get(str(content).strip(), "")
     if plat == "Dable":
         return _code(content, "DB")                # 소재 애드코드 DB####
     if plat == "TikTok":
