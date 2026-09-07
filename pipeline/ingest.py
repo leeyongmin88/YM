@@ -99,7 +99,7 @@ def read_meta():
                 continue
             camp = str(r[1] or ""); cre = str(r[3] or "")
             key = _code(cre, "MT") or camp                    # 매칭키 = 소재의 MT코드
-            aid = str(r[4] or "").strip()                     # 광고 ID
+            aid = norm_id(r[4])                                # 광고 ID(엑셀 숫자형 .0 제거 정규화)
             if aid and aid not in META_ID_KEY:
                 META_ID_KEY[aid] = key
                 META_ID_INFO[aid] = (cre, camp, brand_from(camp))
