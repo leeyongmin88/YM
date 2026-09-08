@@ -89,7 +89,7 @@ def classify_row(media, camp, key):
         if "pmax" in c:    return "DA", "구글 피맥스(쇼핑)", "성과형"
         if "cpc" in c:     return "SA", "구글 키워드검색", "성과형"
         if "youtube" in c: return "DA", "구글 유튜브", "노출형"
-        if "gdn" in c:     return "DA", "구글 GDN", "노출형"
+        if "gdn" in c:     return "DA", "구글 GDN", "성과형"
         return "SA", "구글 기타", "성과형"
     if m == "Naver":
         prod = ("네이버 스마트채널(전환)" if "smart_conv" in c else "네이버 스마트채널" if "smart" in c
@@ -116,6 +116,9 @@ _PRODNAME = {
     "네이버 브랜드검색": "bsa", "네이버 키워드검색": "cpc", "네이버 쇼핑검색": "shopping",
     "네이버 플레이스": "place", "네이버 엠버서더": "Ambassador", "네이버 애드부스트": "advoost",
     "구글 키워드검색": "SA", "구글 피맥스(쇼핑)": "PMAX", "RTB하우스": "RTB",
+    "네이버 스마트채널": "smart", "카카오 비즈보드": "Bizboard",
+    "구글 GDN": "gdn", "구글 유튜브": "youtube",
+    "데이블": "native_ad", "틱톡": "Infeed", "토스": "Display",
 }
 _CRI_CASE = {"LF": "LF", "CCA": "CCA", "HYBRID": "Hybrid"}   # 사전 대소문자
 # 상품분류 → (구분, 최적화, 타겟팅, 어드벤티지, 소재형식, 소재명1, 소재명2). 최적화 None=행별.
@@ -131,6 +134,14 @@ _ATTR = {
     "네이버 플레이스":   ("Routine", "Conversion", "KW", "none", "Text", "N", "N"),
     "네이버 엠버서더":   ("Routine", "Conversion", "KW", "none", "Text", "N", "N"),
     "RTB하우스":        ("Routine", "Conversion", "RE", "ADV", "Catalog", "N", "N"),
+    # 아래 4종: 사전 실제값 기준(2026-09 확정)
+    "네이버 스마트채널": ("Sales Event", "Traffic", None, "none", "Image", "N", "N"),  # 타겟팅=소재명 기준
+    "카카오 비즈보드":   ("Sales Event", "Traffic", "RE", "none", "Image", "N", "N"),   # _biz=Traffic/RE
+    "구글 GDN":         ("Routine", "Traffic", "AUD", "ADV", "Image", "N", "N"),
+    "구글 유튜브":       ("Routine", "Videoview", "AUD", "ADV", "Video", "N", "N"),
+    "데이블":           ("Routine", "Traffic", "non", "none", "Image", "N", "N"),
+    "틱톡":             ("Routine", "Traffic", "INT", "ADV", "Video", "N", "N"),
+    "토스":             ("Routine", "Conversion", "INT", "none", "Image", "N", "N"),
 }
 _MOKJEOK = {"성과형": "pf", "노출형": "br"}
 
@@ -143,6 +154,18 @@ def _nc_prodname(sb, mk, camp):
         c = str(camp)
         return c.split("_br_")[-1] if "_br_" in c else "br"
     return _PRODNAME.get(sb, "")
+
+
+def _nc_targ(sb, soje, adgrp):
+    """행별 타겟팅. 네이버 스마트채널은 소재명/광고그룹의 interest·keyword로 판별(사전과 동일 방식)."""
+    if sb == "네이버 스마트채널":
+        t = f"{soje} {adgrp}".lower()
+        if "keyword" in t:
+            return "KW"
+        if "interest" in t:
+            return "INT"
+        return "INT"                                   # 판별 불가 시 다수값
+    return ""
 
 
 def _nc_opt(sb, mk, camp):
@@ -169,7 +192,8 @@ def fill_noncode(df):
         df.at[i, "상품명"] = _nc_prodname(sb, mk, camp)
         df.at[i, "구분"] = gubun
         df.at[i, "최적화"] = opt if opt is not None else _nc_opt(sb, mk, camp)
-        df.at[i, "타겟팅"] = targ
+        df.at[i, "타겟팅"] = targ if targ is not None else _nc_targ(
+            sb, df.at[i, "광고(소재)"], df.at[i, "광고그룹"])
         df.at[i, "어드벤티지"] = adv
         df.at[i, "소재형식"] = soje
         df.at[i, "소재명1구분"] = s1
