@@ -85,6 +85,19 @@ def _find(subdir, pattern):
 
 
 # ---------- 매체별 리더 (매칭키 포함) ----------
+def norm_adid(x):
+    """메타 광고ID 정규화. 엑셀이 숫자로 읽어 '.0'이 붙거나 float로 온 경우를 흡수하되,
+    18자리 등 긴 ID가 지수표기로 뭉개지지 않게 정수 문자열을 그대로 보존한다."""
+    if x is None:
+        return ""
+    if isinstance(x, float):
+        return str(int(x)) if x.is_integer() else str(x)
+    t = str(x).strip()
+    if t.endswith(".0") and t[:-2].isdigit():
+        t = t[:-2]
+    return t
+
+
 # 메타 광고ID → 매칭키(애드코드) 번역표. GA 콘텐츠에 MT코드 대신 광고ID가 오는 경우 사용.
 # read_meta()가 RAW를 읽으며 채움 (같은 행의 광고ID·광고이름이므로 1:1 사실관계).
 META_ID_KEY = {}                 # {광고ID: 매칭키}
@@ -99,7 +112,7 @@ def read_meta():
                 continue
             camp = str(r[1] or ""); cre = str(r[3] or "")
             key = _code(cre, "MT") or camp                    # 매칭키 = 소재의 MT코드
-            aid = norm_id(r[4])                                # 광고 ID(엑셀 숫자형 .0 제거 정규화)
+            aid = norm_adid(r[4])                             # 광고 ID(.0 제거, 긴 ID 원형 보존)
             if aid and aid not in META_ID_KEY:
                 META_ID_KEY[aid] = key
                 META_ID_INFO[aid] = (cre, camp, brand_from(camp))
