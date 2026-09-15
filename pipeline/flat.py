@@ -56,8 +56,8 @@ def build_flat(uni):
     rows = []
     for _, r in g.iterrows():
         jimyeon = _jimyeon(r["매체"], r["광고그룹"])
-        # 신규 3매체(Toss/TikTok/Dable)는 유형=성과형·구분=일반 고정
-        if jimyeon in ("Toss", "TikTok", "Dable"):
+        # 신규 매체(Toss/TikTok/Dable/Buzzvil)는 유형=성과형·구분=일반 고정
+        if jimyeon in ("Toss", "TikTok", "Dable", "Buzzvil"):
             yutype, gubun = "성과형", "일반"
         else:
             yutype, gubun = _type(r["camp"]), _gubun(r["광고그룹"])

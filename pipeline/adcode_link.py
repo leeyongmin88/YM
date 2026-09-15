@@ -107,6 +107,7 @@ def classify_row(media, camp, key):
     if m == "Dable":   return "DA", "데이블", "성과형"
     if m == "TikTok":  return "DA", "틱톡", "성과형"
     if m == "Toss":    return "DA", "토스", "성과형"
+    if m == "Buzzvil": return "DA", "버즈빌", "성과형"
     return "", m, ""
 
 
@@ -227,10 +228,10 @@ def build_linked():
     return df, attr_cols, codes, syn
 
 
-# 애드코드 없는 행(검색·RTB 등) 합성코드 접두어 (실제 코드 MT/KK/CT/NG/DB/TT/TS와 겹치지 않게)
+# 애드코드 없는 행(검색·RTB 등) 합성코드 접두어 (실제 코드 MT/KK/CT/NG/DB/TT/TS/BZ와 겹치지 않게)
 _SYN_PREFIX = {"Naver SA": "NS", "Google": "GO", "Naver": "NV", "KKO": "KO",
                "Criteo": "CR", "Meta": "ME", "RTB": "RT",
-               "Dable": "DA", "TikTok": "TK", "Toss": "TO"}
+               "Dable": "DA", "TikTok": "TK", "Toss": "TO", "Buzzvil": "BV"}
 
 
 def _add_final_key(df):
@@ -277,7 +278,7 @@ def main():
         if len(um):
             _pre = re.compile(r"([A-Za-z]+)")
             _MED = {"MT": "Meta", "KK": "KKO", "CT": "Criteo", "NG": "Naver",
-                    "DB": "Dable", "TT": "TikTok", "TS": "Toss",
+                    "DB": "Dable", "TT": "TikTok", "TS": "Toss", "BZ": "Buzzvil",
                     "GS": "Google", "GP": "Google", "GG": "Google", "GY": "Google"}
             # ① 코드별 상세 (+ 사전 없어 캠페인 구조로 채운 분류)
             detail = (um.groupby("애드코드")

@@ -28,7 +28,7 @@ SA_ITEMS = ["N검색", "D검색", "G검색"]
 # (그룹헤더, 소계라벨, 브랜드(None=전체), DA항목들)
 BLOCKS = [
     ("광고비용-시선 전체", "시선 전체", None,
-     ["K디스", "G디스", "N디스", "크리테오", "RTB하우스", "I디스", "데이블", "틱톡", "토스"]),
+     ["K디스", "G디스", "N디스", "크리테오", "RTB하우스", "I디스", "데이블", "틱톡", "토스", "버즈빌"]),
     ("광고비용-미샤", "MI 소계", "MI",
      ["K디스", "G디스", "N디스", "크리테오", "크루비", "RTB하우스", "I디스", "토스"]),
     ("광고비용-E.B.M", "E.B.M 소계", "EBM",
@@ -53,7 +53,8 @@ def _cat(d, cat):
     if cat == "데이블":   return d[m == "Dable"]
     if cat == "틱톡":     return d[m == "TikTok"]
     if cat == "토스":     return d[m == "Toss"]
-    return d.iloc[0:0]   # D검색·크루비·버즈빌·모비온 = 0
+    if cat == "버즈빌":   return d[m == "Buzzvil"]
+    return d.iloc[0:0]   # D검색·크루비·모비온 = 0
 
 
 def _fills(da_items, data=False):
