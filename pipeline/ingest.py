@@ -52,6 +52,19 @@ def brand_from(campaign, idx=1):
     return ""
 
 
+def brand_embedded(text):
+    """브랜드코드가 토큰이 아닌 부분문자열로 박힌 캠페인명(예: '8839EBMq9live_BZ0001')까지 판별.
+    1순위 토큰(brand_from) → 실패 시 부분문자열 검색(EBM→MI→IT, EBM이 가장 구체적)."""
+    b = brand_from(text)
+    if b:
+        return b
+    u = str(text).upper()
+    for cand in ("EBM", "MI", "IT"):
+        if cand in u:
+            return cand
+    return ""
+
+
 def norm_id(x):
     """광고/캠페인 ID → Excel 15자리 유효숫자 정규화 문자열. Meta 매칭용."""
     v = to_num(x)
@@ -292,9 +305,31 @@ def read_toss():
     return pd.DataFrame(out, columns=STD)
 
 
+def read_buzzvil():
+    f = _find("Buzzvil", "*.csv")
+    if f is None:
+        return pd.DataFrame(columns=STD)
+    df = _read_csv(f, "cp949")                            # 소스 인코딩 cp949(euc-kr)
+    df.columns = [c.strip() for c in df.columns]
+    # 비용 컬럼 표기가 '집행 비용 (VAT 제외) (₩)'/'(\)' 등으로 갈려 접두어로 탐색
+    cost_col = next((c for c in df.columns if c.startswith("집행 비용")), None)
+    out = []
+    for _, r in df.iterrows():
+        camp = str(r["캠페인명"]).strip()
+        if not camp:
+            continue
+        cre = str(r["소재명"]).strip()                    # 소재명
+        key = _code(cre, "BZ") or camp                    # 애드코드 BZ####
+        out.append(["Buzzvil", brand_embedded(camp), camp, str(r["광고세트명"]).strip(), cre,
+                    to_date(r["이벤트 발생 날짜"]),
+                    to_num(r[cost_col]) if cost_col else 0.0,
+                    to_num(r["노출 수"]), to_num(r["클릭 수"]), key])
+    return pd.DataFrame(out, columns=STD)                 # 브랜드=문자열 내 포함, 보정 없음(×1.0)
+
+
 READERS = [read_meta, read_google, read_kko, read_criteo, read_rtb,
            read_naver_advoost, read_naver_smart, read_nsa,
-           read_dable, read_tiktok, read_toss]
+           read_dable, read_tiktok, read_toss, read_buzzvil]
 
 
 def build_jeongaek(year, month):

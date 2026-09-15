@@ -57,6 +57,7 @@ BS_MEDIA = [
     ("성과형", "데이블", "Dable", ""),
     ("성과형", "틱톡", "TikTok", ""),
     ("성과형", "토스", "Toss", ""),
+    ("성과형", "버즈빌", "Buzzvil", ""),
     ("노출형", "인스타그램 ", "Meta", "br"),
     ("노출형", "구글 YouTube", "Google", "youtube"),
 ]
@@ -135,7 +136,16 @@ def write_brand_summary(ws, uni, y, mth):
     ws.column_dimensions["E"].width = 3
 
 
-# 리포트 추가 요청: 매체 세부 16종 (6월F 순서). 모든 브랜드에 전 매체 행 표시.
+# 'Instagram_성과형' 중 '카탈로그'로 따로 뺄 캠페인(브랜드별 특정 캠페인, 정확 일치).
+# → 성과형 행에서는 제외되고 카탈로그 행에만 집계(이중집계 방지). 캠페인명 바뀌면 여기 갱신.
+META_CATALOG_CAMPS = {
+    "IG_MI_DA_pf_CONVERSION_RE_ca",     # 미샤
+    "IG_EBM_DA_pf_ASC_NEW",             # E.B.M
+}
+_LBL_META_PF = "Instagram_성과형"
+_LBL_META_CATALOG = "Instagram_성과형 (카탈로그)"
+
+# 리포트 추가 요청: 매체 세부 (6월F 순서). 모든 브랜드에 전 매체 행 표시.
 SUBTYPES = [
     ("Google Pmax", "Google", "pmax"), ("Google Keyword SA", "Google", "cpc"),
     ("Naver Brand SA", "Naver SA", "bsa"), ("Naver Keyword SA", "Naver SA", "cpc"),
@@ -148,8 +158,10 @@ SUBTYPES = [
     ("KAKAO Native", "KKO", "ntv"),
     ("Kakao Catalog", "KKO", "ca"),
     ("Criteo", "Criteo", ""), ("RTB House", "RTB", ""),
-    ("Instagram_성과형", "Meta", "pf"), ("Instagram_노출형(브랜딩)", "Meta", "br"),
+    (_LBL_META_PF, "Meta", "pf"), ("Instagram_노출형(브랜딩)", "Meta", "br"),
+    (_LBL_META_CATALOG, "Meta", "pf"),
     ("틱톡", "TikTok", ""), ("토스", "Toss", ""), ("데이블", "Dable", ""),
+    ("버즈빌", "Buzzvil", ""),
 ]
 
 
@@ -163,10 +175,14 @@ def write_report_request(ws, uni, y, mth):
         _put(ws, 4, 3 + d, date(y, mth, d), "mm-dd", font=F_COL, fill=FILL_COL, align=CENTER)
     _put(ws, 4, 4 + ndays, "월 누계", font=F_COL, fill=FILL_COL, align=CENTER)
 
-    def cost_series(dfb, media, pat):
+    def cost_series(dfb, media, pat, label=""):
         d = dfb[dfb["매체"] == media]
         if pat:
             d = d[camp_match(d["캠페인"], pat)]      # base(biz/smart)는 _conv 제외
+        if label == _LBL_META_CATALOG:              # 카탈로그: 지정 캠페인만
+            d = d[d["캠페인"].isin(META_CATALOG_CAMPS)]
+        elif label == _LBL_META_PF:                 # 성과형: 카탈로그 캠페인 제외
+            d = d[~d["캠페인"].isin(META_CATALOG_CAMPS)]
         return d.groupby("날짜키")["광고비용"].sum().to_dict()
 
     r = 5
@@ -176,7 +192,7 @@ def write_report_request(ws, uni, y, mth):
         dfb = uni if b == "전체" else uni[uni["브랜드"] == b]
         start = r
         for label, media, pat in SUBTYPES:      # 모든 매체 행 표시(0이어도)
-            series = cost_series(dfb, media, pat)
+            series = cost_series(dfb, media, pat, label)
             _put(ws, r, 3, label, align=LEFT)
             total = 0.0
             for dd in range(1, ndays + 1):

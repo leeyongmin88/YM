@@ -91,6 +91,7 @@ def platform_of(source_medium):
     if "dable" in s:   return "Dable"
     if "tiktok" in s or "tik_tok" in s: return "TikTok"
     if "toss" in s:    return "Toss"
+    if "buzzvil" in s: return "Buzzvil"
     return ""
 
 
@@ -126,6 +127,8 @@ def ga_key(plat, camp, content, camp_id, ad_ct_bt=None):
         return _code(content, "TT")                # 소재 애드코드 TT####
     if plat == "Toss":
         return _code(content, "TS")                # 소재 애드코드 TS####
+    if plat == "Buzzvil":
+        return _code(content, "BZ")                # 소재 애드코드 BZ####
     if plat == "Google":
         return camp if camp.upper().startswith("GGL") else ""
     if plat == "Criteo":
