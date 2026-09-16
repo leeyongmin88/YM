@@ -223,9 +223,15 @@ def build_linked():
         lambda x: "매칭" if x in codes else ("미매칭" if x else "코드없음"))
     # ③ 코드없음 행의 사전속성을 규칙대로 채움(빈칸 제거)
     df = fill_noncode(df)
+    # ④ 토스·틱톡·데이블은 기획전번호와 무관하게 구분=Routine
+    df.loc[df["매체"].isin(_ALWAYS_ROUTINE), "구분"] = "Routine"
     # 최종매칭키: 애드코드 있으면 그대로, 없으면 매체별 합성코드 부여(임의)
     df, syn = _add_final_key(df)
     return df, attr_cols, codes, syn
+
+
+# 기획전번호(4자리 숫자)가 붙어도 구분은 Routine 으로 고정하는 매체
+_ALWAYS_ROUTINE = {"Toss", "TikTok", "Dable"}
 
 
 # 애드코드 없는 행(검색·RTB 등) 합성코드 접두어 (실제 코드 MT/KK/CT/NG/DB/TT/TS/BZ와 겹치지 않게)

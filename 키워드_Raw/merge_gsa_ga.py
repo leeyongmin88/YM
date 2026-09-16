@@ -85,7 +85,11 @@ def find(pattern, folder, label):
 def read_text(path):
     """구글 리포트는 UTF-16, GA 는 UTF-8 로 내려온다"""
     raw = open(path, 'rb').read()
-    for enc in ('utf-16', 'utf-8-sig', 'cp949'):
+    if raw[:2] in (b'\xff\xfe', b'\xfe\xff'):
+        encs = ('utf-16',)
+    else:
+        encs = ('utf-8-sig', 'cp949', 'utf-16')
+    for enc in encs:
         try:
             return raw.decode(enc)
         except (UnicodeDecodeError, UnicodeError):
@@ -93,15 +97,23 @@ def read_text(path):
     sys.exit('[중단] 인코딩을 알 수 없습니다: %s' % os.path.basename(path))
 
 
+def find_header(lines, first_col):
+    """헤더행 번호와 구분자(탭/콤마)를 함께 찾는다"""
+    for n, l in enumerate(lines):
+        for sep in ('\t', ','):
+            if l.split(sep)[0].strip().strip('"') == first_col:
+                return n, sep
+    return None, None
+
+
 # ── 읽기 ───────────────────────────────────────────────
 def load_ad(path):
     lines = read_text(path).splitlines()
-    try:
-        hi = next(i for i, l in enumerate(lines) if l.split('\t')[0].strip() == '일')
-    except StopIteration:
+    hi, sep = find_header(lines, '일')
+    if hi is None:
         sys.exit('[중단] 광고 리포트에서 헤더행(일 / 캠페인 / …)을 찾지 못했습니다')
     period = lines[1].strip() if hi >= 2 else ''
-    rows = list(csv.reader(lines[hi:], delimiter='\t'))
+    rows = list(csv.reader(lines[hi:], delimiter=sep))
     H = {k.strip(): i for i, k in enumerate(rows[0])}
     need = ('일', '캠페인', '광고그룹', '검색어', '비용', '노출수', '클릭수')
     miss = [k for k in need if k not in H]
@@ -126,11 +138,10 @@ def load_ad(path):
 
 def load_ga(path):
     lines = read_text(path).splitlines()
-    try:
-        hi = next(i for i, l in enumerate(lines) if l.startswith('날짜,'))
-    except StopIteration:
+    hi, sep = find_header(lines, '날짜')
+    if hi is None:
         sys.exit('[중단] GA 리포트에서 헤더행(날짜, …)을 찾지 못했습니다')
-    rows = list(csv.reader(lines[hi:]))
+    rows = list(csv.reader(lines[hi:], delimiter=sep))
     G = {k.strip(): i for i, k in enumerate(rows[0])}
     need = ('날짜', '세션 Google Ads 캠페인', '세션 Google Ads 광고그룹 이름',
             '세션 Google Ads 검색어', '세션수', '구매', '구매 수익')

@@ -264,6 +264,8 @@ def read_dable():
         if r[0] is None:
             continue
         camp = str(r[2] or ""); cre = str(r[5] or "")       # 캠페인명, 콘텐츠관리용제목(소재)
+        if not camp.strip():
+            continue                                         # 총합계·공백행 제외
         key = _code(cre, "DB") or camp                       # 애드코드 DB####
         out.append(["Dable", brand_from(camp), camp, camp, cre,
                     to_date(r[0]), to_num(r[8]), to_num(r[6]), to_num(r[7]), key])
