@@ -35,7 +35,18 @@ echo.
 echo   ^> 대상: !TARGET!
 if not exist "%~dp0output" mkdir "%~dp0output"
 
+rem --- Python 3.12 찾기: 기본 위치 -> py 런처 순 ---
 set "PY=%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
+if exist "%PY%" goto :pyfound
+for /f "delims=" %%P in ('py -3.12 -c "import sys;print(sys.executable)" 2^>nul') do set "PY=%%P"
+if exist "%PY%" goto :pyfound
+echo.
+echo   [오류] Python 3.12 를 찾지 못했습니다.
+echo          설치안내.md 의 "2. Python 3.12 설치" 를 확인해주세요.
+echo.
+pause
+exit /b
+:pyfound
 
 echo.
 echo ---- [1/2] 네이버 SA 키워드 ----

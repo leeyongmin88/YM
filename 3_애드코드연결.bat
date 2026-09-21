@@ -39,11 +39,23 @@ echo.
 echo   ^> 대상: !PICK!
 echo   ^> 애드코드사전.xlsx 기준으로 연결합니다.
 echo.
-"%LOCALAPPDATA%\Programs\Python\Python312\python.exe" "%~dp0pipeline\adcode_link.py"
+rem --- Python 3.12 찾기: 기본 위치 -> py 런처 순 ---
+set "PY=%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
+if exist "%PY%" goto :pyfound
+for /f "delims=" %%P in ('py -3.12 -c "import sys;print(sys.executable)" 2^>nul') do set "PY=%%P"
+if exist "%PY%" goto :pyfound
+echo.
+echo   [오류] Python 3.12 를 찾지 못했습니다.
+echo          설치안내.md 의 "2. Python 3.12 설치" 를 확인해주세요.
+echo.
+pause
+exit /b
+:pyfound
+"%PY%" "%~dp0pipeline\adcode_link.py"
 echo.
 echo ============================================
 echo   완료. output 폴더에서 '통합_애드코드연결_...' 파일 확인.
-echo   (사전에 없는 코드는 [미매칭코드] 시트에 표시됩니다)
+echo   (사전에 없는 코드는 [미매칭_요약] [미매칭_코드목록] 시트에 표시됩니다)
 echo   아무 키나 누르면 닫힙니다.
 echo ============================================
 pause >nul
