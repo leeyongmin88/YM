@@ -97,6 +97,20 @@ def _find(subdir, pattern):
     return next(iter(sorted((RAW_DIR / subdir).glob(pattern))), None)
 
 
+def _col(df, *cands):
+    """매체가 리포트 양식을 바꿔 열 이름이 달라져도 찾아낸다.
+    정확일치 → 접미/접두 일치 순. (예: '노출 수' → '주요 노출 수')"""
+    cols = list(df.columns)
+    for c in cands:
+        if c in cols:
+            return c
+    for c in cols:
+        if any(c.endswith(x) or c.startswith(x) for x in cands):
+            return c
+    raise KeyError("컬럼을 찾지 못했습니다: %s  (실제 컬럼: %s)"
+                   % (" / ".join(cands), ", ".join(cols)))
+
+
 # ---------- 매체별 리더 (매칭키 포함) ----------
 def norm_adid(x):
     """메타 광고ID 정규화. 엑셀이 숫자로 읽어 '.0'이 붙거나 float로 온 경우를 흡수하되,
@@ -294,6 +308,9 @@ def read_toss():
         return pd.DataFrame(columns=STD)
     df = _read_csv(f, "utf-8-sig")
     df.columns = [c.strip() for c in df.columns]
+    c_cost = _col(df, "집행 비용")                           # '집행 비용 (VAT 제외) (\u20a9)'
+    c_imp = _col(df, "노출 수")                              # 26년9월부터 '주요 노출 수'
+    c_clk = _col(df, "클릭 수")                              # 26년9월부터 '주요 클릭 수'
     out = []
     for _, r in df.iterrows():
         camp = str(r["캠페인명"]).strip()                    # 끝 탭문자 제거
@@ -302,8 +319,8 @@ def read_toss():
         cre = str(r["소재명"]).strip()                       # 소재명
         key = _code(cre, "TS") or camp                       # 애드코드 TS####
         out.append(["Toss", brand_from(camp), camp, str(r["광고세트명"]).strip(), cre,
-                    to_date(r["이벤트 발생 날짜"]), to_num(r["집행 비용 (VAT 제외) (₩)"]),
-                    to_num(r["노출 수"]), to_num(r["클릭 수"]), key])
+                    to_date(r["이벤트 발생 날짜"]), to_num(r[c_cost]),
+                    to_num(r[c_imp]), to_num(r[c_clk]), key])
     return pd.DataFrame(out, columns=STD)
 
 

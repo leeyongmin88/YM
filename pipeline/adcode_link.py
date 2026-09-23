@@ -53,8 +53,11 @@ def load_dict():
     df[key] = df[key].astype(str).str.strip().str.upper()
     df = df[(df[key] != "") & (df[key] != "NAN")]
     attr_src = [c for c in df.columns if c != key]
-    ren = {c: ("코드_매체" if c == "매체" else "코드_SADA" if c == "`" else c)
-           for c in attr_src}                              # 매체 중복회피 + 깨진 SA/DA 헤더 정리
+    # 매체 중복회피 + SA/DA 헤더 정규화.
+    # 사전 파일에 따라 헤더가 `(깨진 값) 또는 SA/DA 로 오므로 둘 다 코드_SADA 로 통일한다.
+    ren = {c: ("코드_매체" if c == "매체"
+               else "코드_SADA" if c in ("`", "SA/DA") else c)
+           for c in attr_src}
     df = df.rename(columns=ren)
     attr_cols = [ren[c] for c in attr_src]
     dic = {r[key]: {c: r[c] for c in attr_cols} for _, r in df.iterrows()}
