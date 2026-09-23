@@ -1,4 +1,4 @@
-# YM 데일리 광고 리포트 자동화 — 프로젝트 지침
+# WB 데일리 광고 리포트 자동화 — 프로젝트 지침
 
 매체별 RAW 데이터 → **통합 리포트(.xlsx, 32시트)** 를 생성하는 Python 파이프라인.
 claude.ai 스킬 `wb-ss-da-dailyreport-v14`(Office.js)를 로컬 Python으로 이식한 것.
