@@ -20,3 +20,6 @@ venv/
 ~$*
 .DS_Store
 Thumbs.db
+
+# 실행 매뉴얼 (로컬 보관)
+WB_리포트_실행매뉴얼.xlsx
